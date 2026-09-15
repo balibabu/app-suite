@@ -69,6 +69,11 @@ class RegisterView(APIView):
     throttle_scope = "auth_login"
 
     def post(self, request):
+        if not settings.ALLOW_SIGNUP:
+            return Response(
+                {"detail": "signups are disabled on this server", "code": "signup_disabled"},
+                status=status.HTTP_403_FORBIDDEN,
+            )
         serializer = RegisterSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data

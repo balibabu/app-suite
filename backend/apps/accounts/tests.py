@@ -33,6 +33,13 @@ class RegistrationTests(BaseAPITestCase):
         response = self.client.post("/api/v1/auth/register/", payload, format="json")
         self.assertEqual(response.status_code, 400)
 
+    def test_register_rejected_when_signup_disabled(self):
+        with self.settings(ALLOW_SIGNUP=False):
+            response = self.client.post("/api/v1/auth/register/", build_registration("bob", "pw12345678"), format="json")
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.json()["code"], "signup_disabled")
+        self.assertFalse(User.objects.filter(username="bob").exists())
+
 
 class LoginTests(BaseAPITestCase):
     def setUp(self):

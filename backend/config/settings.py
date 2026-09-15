@@ -18,6 +18,7 @@ def env_bool(name, default=False):
 SECRET_KEY = os.environ.get("APPSUITE_SECRET_KEY") or "django-insecure-dev-only-change-me"
 DEBUG = env_bool("APPSUITE_DEBUG", True)
 ALLOWED_HOSTS = [host.strip() for host in os.environ.get("APPSUITE_ALLOWED_HOSTS", "*").split(",") if host.strip()]
+ALLOW_SIGNUP = env_bool("APPSUITE_ALLOW_SIGNUP", True)
 
 INSTALLED_APPS = [
     "django.contrib.staticfiles",

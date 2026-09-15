@@ -176,6 +176,7 @@ Backend (`backend/.env`, loaded by Django on startup):
 | `APPSUITE_MAX_FILE_SIZE` | max upload in bytes (default 100 MiB) |
 | `APPSUITE_USER_STORAGE_LIMIT` | per-user quota in bytes (default 1 GiB) |
 | `APPSUITE_TRUST_X_FORWARDED_FOR` | `True` behind nginx |
+| `APPSUITE_ALLOW_SIGNUP` | `True` to allow open registration, `False` for invite-only/private server |
 
 Frontend (`frontend/.env`, baked in at build time):
 

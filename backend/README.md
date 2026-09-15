@@ -40,6 +40,7 @@ uv run python manage.py test
 | `APPSUITE_CORS_ORIGINS` | localhost dev origins | Comma-separated allowed origins |
 | `APPSUITE_CORS_ALLOW_ALL` | value of `APPSUITE_DEBUG` | Allow all origins |
 | `APPSUITE_TRUST_X_FORWARDED_FOR` | `false` | Use `X-Forwarded-For` for client IP |
+| `APPSUITE_ALLOW_SIGNUP` | `true` | Allow new user registration via the API |
 
 ## E2EE architecture
 
