@@ -1,14 +1,15 @@
-import { fromB64, fromUtf8, randomBytes, toB64, utf8, type Bytes } from './bytes'
+import { fromB64, fromUtf8, randomBytes, toB64, toHex, utf8, type Bytes } from './bytes'
 
 export const PBKDF2_ITERATIONS = 250_000
+export const PIN_ITERATIONS = 600_000
 const NONCE_LENGTH = 12
 
-async function deriveWrappingKey(password: string, saltHex: string): Promise<CryptoKey> {
+async function deriveWrappingKey(password: string, saltHex: string, iterations = PBKDF2_ITERATIONS): Promise<CryptoKey> {
   const salt = new Uint8Array(saltHex.length / 2)
   for (let i = 0; i < salt.length; i++) salt[i] = parseInt(saltHex.slice(i * 2, i * 2 + 2), 16)
   const base = await crypto.subtle.importKey('raw', utf8(password), 'PBKDF2', false, ['deriveKey'])
   return crypto.subtle.deriveKey(
-    { name: 'PBKDF2', salt: salt.buffer as ArrayBuffer, iterations: PBKDF2_ITERATIONS, hash: 'SHA-256' },
+    { name: 'PBKDF2', salt: salt.buffer as ArrayBuffer, iterations, hash: 'SHA-256' },
     base,
     { name: 'AES-GCM', length: 256 },
     false,
@@ -111,4 +112,26 @@ export async function unwrapVault(
     master: fromB64(payload.m),
     identityPrivate: payload.ipk ? fromB64(payload.ipk) : undefined,
   }
+}
+
+interface PinGuardPayload {
+  v: 1
+  salt: string
+  iterations: number
+  data: string
+}
+
+export async function createPinGuard(pin: string, master: Bytes, iterations = PIN_ITERATIONS): Promise<string> {
+  const saltHex = toHex(randomBytes(16))
+  const key = await deriveWrappingKey(pin, saltHex, iterations)
+  const data = await encryptRaw(key, master)
+  const payload: PinGuardPayload = { v: 1, salt: saltHex, iterations, data: toB64(data) }
+  return JSON.stringify(payload)
+}
+
+export async function openPinGuard(guard: string, pin: string): Promise<Bytes> {
+  const payload = JSON.parse(guard) as PinGuardPayload
+  if (payload.v !== 1 || typeof payload.salt !== 'string') throw new Error('unsupported pin guard')
+  const key = await deriveWrappingKey(pin, payload.salt, payload.iterations)
+  return decryptRaw(key, fromB64(payload.data))
 }

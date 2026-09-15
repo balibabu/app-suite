@@ -1,7 +1,18 @@
 import { describe, expect, it } from 'vitest'
 import { createHash } from 'node:crypto'
 import { clientEphemeral, clientSession, derivePrivateKeyKey, deriveVerifier, hexFromInt, N, G } from './srp'
-import { decryptBlob, encryptBlob, importMasterKey, unwrapVault, wrapVault, generateMasterKey, encryptBytes, decryptBytes } from './crypto'
+import {
+  createPinGuard,
+  decryptBlob,
+  encryptBlob,
+  importMasterKey,
+  openPinGuard,
+  unwrapVault,
+  wrapVault,
+  generateMasterKey,
+  encryptBytes,
+  decryptBytes,
+} from './crypto'
 import { randomBytes, toHex, fromB64, toB64 } from './bytes'
 
 const SALT = toHex(randomBytes(16))
@@ -106,5 +117,30 @@ describe('vault crypto', () => {
     const encrypted = await encryptBytes(key, data)
     expect(encrypted.length).toBe(data.length + 12 + 16)
     expect(await decryptBytes(key, encrypted)).toEqual(data)
+  })
+})
+
+describe('pin guard', () => {
+  const FAST = 1000
+
+  it('wraps and unwraps the master key with a pin', async () => {
+    const master = generateMasterKey()
+    const guard = await createPinGuard('1234', master, FAST)
+    const payload = JSON.parse(guard) as { v: number; salt: string; iterations: number; data: string }
+    expect(payload.v).toBe(1)
+    expect(payload.salt).not.toBe(SALT)
+    expect(toB64(await openPinGuard(guard, '1234'))).toBe(toB64(master))
+  })
+
+  it('rejects the wrong pin', async () => {
+    const guard = await createPinGuard('1234', generateMasterKey(), FAST)
+    await expect(openPinGuard(guard, '4321')).rejects.toThrow()
+  })
+
+  it('uses a unique salt per guard', async () => {
+    const master = generateMasterKey()
+    const first = JSON.parse(await createPinGuard('1234', master, FAST)) as { salt: string }
+    const second = JSON.parse(await createPinGuard('1234', master, FAST)) as { salt: string }
+    expect(first.salt).not.toBe(second.salt)
   })
 })

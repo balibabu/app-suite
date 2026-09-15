@@ -3,9 +3,11 @@ import { bare, errorMessage, ensureAccess, http } from '../lib/api'
 import { toHex, randomBytes, fromB64, toB64 } from '../lib/bytes'
 import { deriveVerifier, clientEphemeral, clientSession } from '../lib/srp'
 import {
+  createPinGuard,
   generateIdentity,
   generateMasterKey,
   importMasterKey,
+  openPinGuard,
   unwrapVault,
   wrapVault,
 } from '../lib/crypto'
@@ -40,10 +42,14 @@ interface AuthState {
   masterKey: CryptoKey | null
   busy: boolean
   error: string | null
+  pinAvailable: boolean
   boot: () => Promise<void>
   login: (username: string, password: string) => Promise<void>
   register: (username: string, password: string) => Promise<void>
   unlock: (password: string) => Promise<void>
+  unlockWithPin: (pin: string) => Promise<void>
+  setPin: (pin: string) => Promise<void>
+  clearPin: () => void
   logout: () => Promise<void>
   forceExpired: () => void
   refreshMe: () => Promise<void>
@@ -57,6 +63,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   masterKey: null,
   busy: false,
   error: null,
+  pinAvailable: false,
 
   async boot() {
     const refresh = store.get('refresh')
@@ -79,7 +86,7 @@ export const useAuth = create<AuthState>((set, get) => ({
         return
       }
     }
-    set({ status: 'locked' })
+    set({ status: 'locked', pinAvailable: !!store.get('pinguard') })
   },
 
   async login(username, password) {
@@ -162,6 +169,40 @@ export const useAuth = create<AuthState>((set, get) => ({
       set({ busy: false, error: message.includes('decrypt') || message.includes('vault') ? 'wrong password' : message })
       throw error
     }
+  },
+
+  async unlockWithPin(pin) {
+    set({ busy: true, error: null })
+    try {
+      const guard = store.get('pinguard')
+      if (!guard) throw new Error('no pin set on this device')
+      const master = await openPinGuard(guard, pin)
+      const key = await importMasterKey(master)
+      store.sessionSet('master', toB64(master))
+      set({ status: 'unlocked', masterKey: key, busy: false, error: null })
+      await ensureAccess()
+      const { data } = await http.get<Me>('/auth/me/')
+      set({ user: data })
+      store.set('wrapped', data.wrapped_private_key)
+    } catch (error) {
+      const message = errorMessage(error)
+      set({ busy: false, error: message.includes('decrypt') ? 'wrong pin' : message })
+      throw error
+    }
+  },
+
+  async setPin(pin) {
+    const masterB64 = store.sessionGet('master')
+    if (!masterB64) throw new Error('vault is locked')
+    const guard = await createPinGuard(pin, fromB64(masterB64))
+    store.set('pinguard', guard)
+    store.remove('pindismiss')
+    set({ pinAvailable: true, error: null })
+  },
+
+  clearPin() {
+    store.remove('pinguard')
+    set({ pinAvailable: false, error: null })
   },
 
   async logout() {

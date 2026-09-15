@@ -48,7 +48,7 @@ export const store = {
   sessionSet: (key: string, value: string) => write(session(), key, value),
   sessionRemove: (key: string) => remove(session(), key),
   clearAll() {
-    for (const key of ['access', 'refresh', 'username', 'wrapped']) remove(local(), key)
+    for (const key of ['access', 'refresh', 'username', 'wrapped', 'pinguard', 'pindismiss']) remove(local(), key)
     remove(session(), 'master')
   },
 }
