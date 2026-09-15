@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  @apply bg-slate-950 text-slate-100 antialiased;
+  background-image:
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99, 102, 241, 0.18), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(168, 85, 247, 0.12), transparent);
+}
+
+.glass {
+  @apply rounded-2xl border border-white/10 bg-white/5 shadow-xl shadow-black/30 backdrop-blur-xl;
+}
+
+.glass-soft {
+  @apply rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-lg;
+}
+
+@utility btn {
+  @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:pointer-events-none disabled:opacity-50;
+}
+
+.btn-primary {
+  @apply btn bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-950/50 hover:from-indigo-400 hover:to-violet-400 active:scale-[0.98];
+}
+
+.btn-ghost {
+  @apply btn border border-white/10 bg-white/5 text-slate-200 backdrop-blur hover:bg-white/10 active:scale-[0.98];
+}
+
+.btn-danger {
+  @apply btn border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 active:scale-[0.98];
+}
+
+.input {
+  @apply w-full rounded-xl border border-white/10 bg-black/30 px-3.5 py-2.5 text-sm text-slate-100 shadow-inner shadow-black/30 transition placeholder:text-slate-500 focus:border-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-500/20;
+}
+
+.label {
+  @apply mb-1.5 block text-xs font-semibold tracking-wide text-slate-400 uppercase;
+}
+
+.blob {
+  position: fixed;
+  border-radius: 9999px;
+  filter: blur(90px);
+  opacity: 0.5;
+  pointer-events: none;
+  z-index: -1;
+  animation: drift 18s ease-in-out infinite alternate;
+}
+
+@keyframes drift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(40px, -30px, 0) scale(1.15);
+  }
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.25);
+  border-radius: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
