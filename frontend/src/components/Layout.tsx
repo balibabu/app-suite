@@ -1,17 +1,30 @@
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { FileText, CheckSquare, HardDrive, Trash2, Settings, LayoutGrid } from 'lucide-react'
 import { useAuth } from '../stores/auth'
 import { useVault } from '../stores/vault'
 import { toast } from '../stores/toast'
-import { formatBytes } from './ui'
 
 const NAV = [
-  { to: '/notes', label: 'Notes', icon: '📝' },
-  { to: '/tasks', label: 'Tasks', icon: '✓' },
-  { to: '/files', label: 'Files', icon: '🗂' },
-  { to: '/trash', label: 'Trash', icon: '🗑' },
-  { to: '/settings', label: 'Settings', icon: '⚙' },
+  { to: '/', label: 'Suite', icon: LayoutGrid },
+  { to: '/notes', label: 'Notes', icon: FileText },
+  { to: '/tasks', label: 'Tasks', icon: CheckSquare },
+  { to: '/files', label: 'Files', icon: HardDrive },
+  { to: '/trash', label: 'Trash', icon: Trash2 },
+  { to: '/settings', label: 'Settings', icon: Settings },
 ]
+
+function useClock() {
+  const [time, setTime] = useState('')
+  useEffect(() => {
+    const tick = () =>
+      setTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+    tick()
+    const interval = setInterval(tick, 1000)
+    return () => clearInterval(interval)
+  }, [])
+  return time
+}
 
 export default function Layout() {
   const user = useAuth((state) => state.user)
@@ -20,6 +33,7 @@ export default function Layout() {
   const syncing = useVault((state) => state.syncing)
   const syncError = useVault((state) => state.syncError)
   const navigate = useNavigate()
+  const clock = useClock()
 
   useEffect(() => {
     void syncAll()
@@ -40,77 +54,77 @@ export default function Layout() {
     if (syncError) toast.error(`sync failed: ${syncError}`)
   }, [syncError])
 
-  const used = user?.storage_used ?? 0
-  const limit = user?.storage_limit ?? 1
-  const pct = Math.min(100, Math.round((used / limit) * 100))
+  const initials = (user?.username ?? 'a').slice(0, 2).toUpperCase()
 
   return (
-    <div className="flex h-full">
-      <div className="blob top-[-10%] left-[-5%] h-96 w-96 bg-indigo-600/30" />
-      <div className="blob right-[-5%] bottom-[-10%] h-96 w-96 bg-violet-600/20" />
-      <aside className="glass m-3 mr-0 flex w-60 shrink-0 flex-col gap-1 p-3">
-        <div className="mb-4 flex items-center gap-2.5 px-2 pt-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 text-lg shadow-lg shadow-indigo-950/50">
-            🔐
+    <div className="relative flex min-h-full flex-col">
+      <div className="orb -top-[15%] -left-[10%] h-[500px] w-[500px] bg-indigo-600/15 blur-[120px]" />
+      <div className="orb top-[40%] -right-[15%] h-[600px] w-[600px] bg-violet-600/15 blur-[140px]" />
+      <div className="orb -bottom-[10%] left-[20%] h-[500px] w-[500px] bg-cyan-600/10 blur-[130px]" />
+
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/5 bg-zinc-950/60 px-4 py-3.5 backdrop-blur-xl sm:px-8">
+        <button
+          onClick={() => navigate('/')}
+          title="suite home"
+          className="flex cursor-pointer items-center gap-3"
+        >
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-500 shadow-lg shadow-indigo-500/20">
+            <LayoutGrid className="h-5 w-5 text-white" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-bold tracking-tight text-white">AppSuite</p>
-            <p className="text-[10px] text-slate-500">end-to-end encrypted</p>
+          <div className="text-left">
+            <h1 className="text-sm font-semibold tracking-wide text-zinc-100">AetherSuite</h1>
+            <p className="text-[11px] text-zinc-400">encrypted workspace</p>
           </div>
-          {syncing ? (
-            <span className="h-2 w-2 animate-pulse rounded-full bg-indigo-400" title="syncing" />
-          ) : null}
-        </div>
-        {NAV.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            className={({ isActive }) =>
-              `flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                isActive
-                  ? 'bg-white/10 text-white shadow-inner'
-                  : 'text-slate-400 hover:bg-white/5 hover:text-slate-200'
-              }`
-            }
-          >
-            <span className="w-5 text-center">{item.icon}</span>
-            {item.label}
-          </NavLink>
-        ))}
-        <div className="mt-auto space-y-3 px-1 pb-1">
-          <div>
-            <div className="mb-1 flex justify-between text-[11px] text-slate-500">
-              <span>storage</span>
-              <span>
-                {formatBytes(used)} / {formatBytes(limit)}
-              </span>
-            </div>
-            <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-400 transition-all"
-                style={{ width: `${pct}%` }}
+        </button>
+
+        <div className="flex items-center gap-3">
+          <div className="hidden text-right sm:block">
+            <span className="font-mono text-xs font-medium text-zinc-300">{clock}</span>
+            <div className="flex items-center justify-end gap-1.5 text-[10px] text-emerald-400">
+              <span
+                className={`h-1.5 w-1.5 rounded-full ${
+                  syncError ? 'bg-red-400' : syncing ? 'animate-pulse bg-amber-400' : 'animate-pulse bg-emerald-400'
+                }`}
               />
+              {syncError ? 'sync error' : syncing ? 'syncing' : 'system online'}
             </div>
           </div>
-          <div className="flex items-center justify-between rounded-xl bg-white/5 px-3 py-2">
-            <span className="truncate text-xs text-slate-400">@{user?.username ?? ''}</span>
-            <button
-              onClick={async () => {
-                await logout()
-                navigate('/auth')
-              }}
-              className="cursor-pointer text-xs font-semibold text-indigo-300 hover:text-indigo-200"
-            >
-              lock
-            </button>
-          </div>
+          <button
+            onClick={async () => {
+              await logout()
+              navigate('/auth')
+            }}
+            title={`lock @${user?.username ?? ''}`}
+            className="flex h-8 w-8 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-zinc-900/80 text-xs font-medium text-zinc-300 transition hover:border-indigo-500/50 hover:text-white"
+          >
+            {initials}
+          </button>
         </div>
-      </aside>
-      <main className="m-3 min-w-0 flex-1 overflow-hidden">
-        <div className="glass flex h-full flex-col overflow-hidden">
-          <Outlet />
-        </div>
+      </header>
+
+      <main className="mx-auto w-full max-w-7xl flex-1 px-3 pt-3 pb-24 sm:px-8 sm:py-6">
+        <Outlet />
       </main>
+
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-zinc-950/80 px-2 pt-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-2xl sm:hidden">
+        <div className="flex items-center justify-around">
+          {NAV.map(({ to, label, icon: Icon }) => (
+            <NavLink
+              key={to}
+              to={to}
+              end={to === '/'}
+              className={({ isActive }) =>
+                `flex min-w-0 flex-1 flex-col items-center gap-0.5 rounded-lg px-1 py-1.5 text-[10px] font-medium transition ${
+                  isActive ? 'text-indigo-400' : 'text-zinc-500 hover:text-zinc-300'
+                }`
+              }
+            >
+              <Icon className="h-5 w-5" />
+              <span className="truncate">{label}</span>
+            </NavLink>
+          ))}
+        </div>
+      </nav>
     </div>
   )
 }

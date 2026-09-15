@@ -6,10 +6,11 @@ from django.utils import timezone
 
 from apps.common.testing import BaseAPITestCase, login_and_get_client
 
-from .models import Note
+from .models import Note, NoteFolder
 
 NOTE_ID = "6c1a2f2e-4f7a-4d8b-9a7a-2f1c3b5d7e91"
 BASE = "/api/v1/notes/"
+FOLDERS = "/api/v1/notes/folders/"
 
 
 class NoteApiTests(BaseAPITestCase):
@@ -109,3 +110,51 @@ class NoteApiTests(BaseAPITestCase):
         listing = other_client.get(BASE)
         self.assertEqual(listing.data, [])
         self.assertEqual(other_client.get(BASE + NOTE_ID + "/").status_code, 404)
+
+    def build_tree(self):
+        root = str(uuid.uuid4())
+        child = str(uuid.uuid4())
+        grandchild = str(uuid.uuid4())
+        note_root = str(uuid.uuid4())
+        note_child = str(uuid.uuid4())
+        for folder_id, parent in ((root, None), (child, root), (grandchild, child)):
+            response = self.client_api.put(
+                FOLDERS + folder_id + "/",
+                {"content": f"folder-{folder_id}", "format_version": 1, "parent": parent},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 201)
+        for note_id, folder in ((note_root, root), (note_child, child)):
+            response = self.client_api.put(
+                BASE + note_id + "/",
+                {"content": f"note-{note_id}", "format_version": 1, "folder": folder},
+                format="json",
+            )
+            self.assertEqual(response.status_code, 201)
+        return root, child, grandchild, note_root, note_child
+
+    def test_folder_trash_cascades_to_descendants(self):
+        root, child, grandchild, note_root, note_child = self.build_tree()
+        removed = self.client_api.delete(FOLDERS + root + "/")
+        self.assertEqual(removed.status_code, 204)
+        self.assertEqual(self.client_api.get(FOLDERS).data, [])
+        self.assertEqual(self.client_api.get(BASE).data, [])
+        self.assertEqual(len(self.client_api.get(FOLDERS + "?trash=true").data), 3)
+        self.assertEqual(len(self.client_api.get(BASE + "?trash=true").data), 2)
+
+    def test_folder_restore_cascades_to_descendants(self):
+        root, child, grandchild, note_root, note_child = self.build_tree()
+        self.client_api.delete(FOLDERS + root + "/")
+        restored = self.client_api.post(FOLDERS + root + "/restore/", format="json")
+        self.assertEqual(restored.status_code, 200)
+        self.assertEqual(len(self.client_api.get(FOLDERS).data), 3)
+        self.assertEqual(len(self.client_api.get(BASE).data), 2)
+        self.assertEqual(self.client_api.get(FOLDERS + "?trash=true").data, [])
+        self.assertEqual(self.client_api.get(BASE + "?trash=true").data, [])
+
+    def test_folder_purge_cascades_to_descendants(self):
+        root, child, grandchild, note_root, note_child = self.build_tree()
+        purged = self.client_api.delete(FOLDERS + root + "/?purge=true")
+        self.assertEqual(purged.status_code, 204)
+        self.assertFalse(NoteFolder.objects.exists())
+        self.assertFalse(Note.objects.exists())

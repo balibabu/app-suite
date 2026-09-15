@@ -7,7 +7,10 @@ import type {
   CollectionKey,
   FileItem,
   FilePlain,
+  FolderItem,
+  FolderPlain,
   ListPlain,
+  NoteItem,
   NotePlain,
   SyncState,
   TaskItem,
@@ -17,6 +20,7 @@ import type {
 } from '../lib/types'
 
 const ENDPOINTS: Record<CollectionKey, string> = {
+  folders: 'notes/folders',
   notes: 'notes',
   lists: 'tasks/lists',
   tasks: 'tasks/tasks',
@@ -54,6 +58,8 @@ function toWireBody(collection: CollectionKey, item: VaultItem<unknown>, blob: s
     [collection === 'files' ? 'meta_ciphertext' : 'content']: blob,
   }
   if (collection === 'tasks') body.task_list = (item as TaskItem).taskList
+  if (collection === 'notes') body.folder = (item as NoteItem).folder
+  if (collection === 'folders') body.parent = (item as FolderItem).parent
   if (withBase && item.itemVersion > 0) body.base_version = item.itemVersion
   return body
 }
@@ -63,19 +69,24 @@ interface VaultState {
   syncing: boolean
   syncError: string | null
   lastSync: Record<CollectionKey, string | null>
-  notes: Record<string, VaultItem<NotePlain>>
+  folders: Record<string, FolderItem>
+  notes: Record<string, NoteItem>
   lists: Record<string, VaultItem<ListPlain>>
   tasks: Record<string, TaskItem>
   files: Record<string, FileItem>
   reset: () => void
   syncAll: () => Promise<void>
-  createNote: () => string
+  createFolder: (parent: string | null, name: string) => string
+  renameFolder: (id: string, name: string) => void
+  moveNote: (id: string, folder: string | null) => void
+  createNote: (folder: string | null) => string
   saveNote: (id: string, plain: NotePlain) => void
   createList: (name: string) => string
   renameList: (id: string, name: string) => void
   createTask: (listId: string | null, title: string) => void
   saveTask: (id: string, plain: TaskPlain, taskList?: string | null) => void
   trashItem: (collection: CollectionKey, id: string) => Promise<void>
+  trashFolder: (id: string) => Promise<void>
   restoreItem: (collection: CollectionKey, id: string) => Promise<void>
   purgeItem: (collection: CollectionKey, id: string) => Promise<void>
   uploadFile: (file: File) => Promise<void>
@@ -119,8 +130,11 @@ export const useVault = create<VaultState>((set, get) => {
         const existing = record[wire.id] as { sync?: SyncState } | undefined
         if (existing?.sync === 'pending') return state
         switch (collection) {
+          case 'folders':
+            record[wire.id] = { ...makeItem<FolderPlain>(wire, plain), parent: wire.parent ?? null }
+            break
           case 'notes':
-            record[wire.id] = makeItem<NotePlain>(wire, plain)
+            record[wire.id] = { ...makeItem<NotePlain>(wire, plain), folder: wire.folder ?? null }
             break
           case 'lists':
             record[wire.id] = makeItem<ListPlain>(wire, plain)
@@ -224,11 +238,41 @@ export const useVault = create<VaultState>((set, get) => {
     })
   }
 
+  function folderDescendants(id: string): Set<string> {
+    const descendants = new Set([id])
+    let grew = true
+    while (grew) {
+      grew = false
+      for (const folder of Object.values(get().folders)) {
+        if (!descendants.has(folder.id) && folder.parent && descendants.has(folder.parent)) {
+          descendants.add(folder.id)
+          grew = true
+        }
+      }
+    }
+    return descendants
+  }
+
+  function cascadeFolders(state: VaultState, ids: Set<string>, deletedAt: string | null): Partial<VaultState> {
+    const folders = { ...state.folders }
+    const notes = { ...state.notes }
+    for (const folderId of ids) {
+      if (folders[folderId]) folders[folderId] = { ...folders[folderId], deletedAt, sync: 'synced' as SyncState }
+    }
+    for (const note of Object.values(notes)) {
+      if (note.folder && ids.has(note.folder)) {
+        notes[note.id] = { ...note, deletedAt, sync: 'synced' as SyncState }
+      }
+    }
+    return { folders, notes }
+  }
+
   return {
     ready: false,
     syncing: false,
     syncError: null,
-    lastSync: { notes: null, lists: null, tasks: null, files: null },
+    lastSync: { folders: null, notes: null, lists: null, tasks: null, files: null },
+    folders: {},
     notes: {},
     lists: {},
     tasks: {},
@@ -242,7 +286,8 @@ export const useVault = create<VaultState>((set, get) => {
         ready: false,
         syncing: false,
         syncError: null,
-        lastSync: { notes: null, lists: null, tasks: null, files: null },
+        lastSync: { folders: null, notes: null, lists: null, tasks: null, files: null },
+        folders: {},
         notes: {},
         lists: {},
         tasks: {},
@@ -261,9 +306,34 @@ export const useVault = create<VaultState>((set, get) => {
       }
     },
 
-    createNote() {
+    createFolder(parent, name) {
       const id = crypto.randomUUID()
-      insertItem<NotePlain>('notes', baseItem(id, { title: '', body: '', edited: Date.now() }))
+      const item: FolderItem = {
+        ...baseItem<FolderPlain>(id, { name }),
+        parent,
+      }
+      insertItem<FolderPlain>('folders', item)
+      schedulePush('folders', id, true)
+      return id
+    },
+
+    renameFolder(id, name) {
+      patchItem('folders', id, { plain: { name }, sync: 'pending' })
+      schedulePush('folders', id)
+    },
+
+    moveNote(id, folder) {
+      patchItem('notes', id, { folder, sync: 'pending' })
+      schedulePush('notes', id, true)
+    },
+
+    createNote(folder) {
+      const id = crypto.randomUUID()
+      const item: NoteItem = {
+        ...baseItem<NotePlain>(id, { title: '', body: '', edited: Date.now() }),
+        folder,
+      }
+      insertItem<NotePlain>('notes', item)
       schedulePush('notes', id, true)
       return id
     },
@@ -309,8 +379,24 @@ export const useVault = create<VaultState>((set, get) => {
       patchItem(collection, id, { deletedAt: new Date().toISOString(), sync: 'synced' })
     },
 
+    async trashFolder(id) {
+      const now = new Date().toISOString()
+      const descendants = folderDescendants(id)
+      for (const folderId of descendants) cancelPush('folders', folderId)
+      for (const note of Object.values(get().notes)) {
+        if (note.folder && descendants.has(note.folder)) cancelPush('notes', note.id)
+      }
+      await http.delete(`/notes/folders/${id}/`)
+      set((state) => cascadeFolders(state, descendants, now))
+    },
+
     async restoreItem(collection, id) {
       const { data } = await http.post<WireItem>(`/${ENDPOINTS[collection]}/${id}/restore/`)
+      if (collection === 'folders') {
+        set((state) => cascadeFolders(state, folderDescendants(id), null))
+        patchItem(collection, id, { itemVersion: data.item_version, updatedAt: data.updated_at })
+        return
+      }
       patchItem(collection, id, {
         deletedAt: null,
         itemVersion: data.item_version,
@@ -322,11 +408,25 @@ export const useVault = create<VaultState>((set, get) => {
     async purgeItem(collection, id) {
       cancelPush(collection, id)
       await http.delete(`/${ENDPOINTS[collection]}/${id}/?purge=true`)
-      set((state) => {
-        const record = { ...(state[collection] as Record<string, unknown>) }
-        delete record[id]
-        return { [collection]: record } as unknown as Partial<VaultState>
-      })
+      if (collection === 'folders') {
+        const descendants = folderDescendants(id)
+        for (const folderId of descendants) cancelPush('folders', folderId)
+        set((state) => {
+          const folders = { ...state.folders }
+          const notes = { ...state.notes }
+          for (const folderId of descendants) delete folders[folderId]
+          for (const note of Object.values(notes)) {
+            if (note.folder && descendants.has(note.folder)) delete notes[note.id]
+          }
+          return { folders, notes }
+        })
+      } else {
+        set((state) => {
+          const record = { ...(state[collection] as Record<string, unknown>) }
+          delete record[id]
+          return { [collection]: record } as unknown as Partial<VaultState>
+        })
+      }
       if (collection === 'files') {
         await useAuth.getState().refreshMe().catch(() => undefined)
       }

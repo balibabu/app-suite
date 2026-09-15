@@ -1,36 +1,68 @@
 import { useEffect, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
+import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react'
 import { useToast } from '../stores/toast'
 
 export function Toaster() {
   const toasts = useToast((state) => state.toasts)
   const dismiss = useToast((state) => state.dismiss)
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-6 z-50 flex flex-col items-center gap-2 px-4">
-      {toasts.map((toastItem) => (
-        <button
-          key={toastItem.id}
-          onClick={() => dismiss(toastItem.id)}
-          className={`glass pointer-events-auto max-w-md cursor-pointer px-4 py-2.5 text-left text-sm shadow-2xl ${
-            toastItem.kind === 'error'
-              ? 'border-red-400/30 text-red-200'
-              : toastItem.kind === 'success'
-                ? 'border-emerald-400/30 text-emerald-200'
-                : 'text-slate-200'
-          }`}
-        >
-          {toastItem.message}
-        </button>
-      ))}
+    <div className="pointer-events-none fixed inset-x-0 bottom-20 z-[60] flex flex-col items-center gap-2 px-4 sm:bottom-6">
+      {toasts.map((toastItem) => {
+        const isError = toastItem.kind === 'error'
+        const isSuccess = toastItem.kind === 'success'
+        return (
+          <div
+            key={toastItem.id}
+            className={`animate-toastIn pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border p-3.5 shadow-2xl backdrop-blur-2xl ${
+              isError
+                ? 'border-red-500/30 bg-zinc-900/90'
+                : isSuccess
+                  ? 'border-emerald-500/30 bg-zinc-900/90'
+                  : 'border-amber-500/30 bg-zinc-900/90'
+            }`}
+          >
+            <div
+              className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${
+                isError
+                  ? 'border-red-500/25 bg-red-500/10 text-red-400'
+                  : isSuccess
+                    ? 'border-emerald-500/25 bg-emerald-500/10 text-emerald-400'
+                    : 'border-indigo-500/25 bg-indigo-500/10 text-indigo-400'
+              }`}
+            >
+              {isError ? (
+                <AlertCircle className="h-4 w-4" />
+              ) : isSuccess ? (
+                <CheckCircle2 className="h-4 w-4" />
+              ) : (
+                <Info className="h-4 w-4" />
+              )}
+            </div>
+            <p className="text-xs leading-relaxed text-zinc-300">{toastItem.message}</p>
+            <button
+              onClick={() => dismiss(toastItem.id)}
+              className="ml-auto shrink-0 cursor-pointer text-zinc-500 transition hover:text-white"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )
+      })}
     </div>
   )
 }
 
 export function Modal({
+  icon,
   title,
+  subtitle,
   children,
   onClose,
 }: {
+  icon?: ReactNode
   title: string
+  subtitle?: string
   children: ReactNode
   onClose: () => void
 }) {
@@ -41,13 +73,32 @@ export function Modal({
     window.addEventListener('keydown', handler)
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
-  return (
-    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm">
-      <div className="glass w-full max-w-md p-6">
-        <h2 className="mb-4 text-lg font-semibold text-white">{title}</h2>
+  return createPortal(
+    <div
+      className="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="glass w-full max-w-sm border-white/10 bg-zinc-900/95 p-5 shadow-2xl"
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="mb-4 flex items-center gap-3">
+          {icon ? <div className="shrink-0">{icon}</div> : null}
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-zinc-100">{title}</h3>
+            {subtitle ? <p className="text-xs text-zinc-400">{subtitle}</p> : null}
+          </div>
+          <button
+            onClick={onClose}
+            className="ml-auto shrink-0 cursor-pointer rounded-lg border border-white/10 bg-white/5 p-1.5 text-zinc-400 transition hover:bg-white/10 hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
         {children}
       </div>
-    </div>
+    </div>,
+    document.body,
   )
 }
 
@@ -68,21 +119,42 @@ export function SyncBadge({ sync }: { sync: 'synced' | 'pending' | 'error' }) {
   if (sync === 'synced') return null
   return (
     <span
-      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase ${
-        sync === 'pending' ? 'bg-amber-400/15 text-amber-300' : 'bg-red-400/15 text-red-300'
+      title={sync === 'pending' ? 'saving…' : 'sync failed'}
+      className={`inline-block h-1.5 w-1.5 shrink-0 rounded-full ${
+        sync === 'pending' ? 'animate-pulse bg-amber-400' : 'bg-red-400'
       }`}
-    >
-      {sync === 'pending' ? 'saving' : 'offline'}
-    </span>
+    />
   )
 }
 
-export function EmptyState({ icon, title, hint }: { icon: string; title: string; hint?: string }) {
+export function StatusTag({ active }: { active: boolean }) {
+  return active ? (
+    <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold tracking-wider text-emerald-400 uppercase">
+      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+      Active
+    </span>
+  ) : null
+}
+
+export function EmptyState({
+  icon,
+  title,
+  hint,
+  action,
+}: {
+  icon: ReactNode
+  title: string
+  hint?: string
+  action?: ReactNode
+}) {
   return (
-    <div className="flex h-full flex-col items-center justify-center gap-2 p-10 text-center">
-      <div className="text-4xl opacity-60">{icon}</div>
-      <p className="text-sm font-medium text-slate-300">{title}</p>
-      {hint ? <p className="max-w-xs text-xs text-slate-500">{hint}</p> : null}
+    <div className="flex h-full flex-col items-center justify-center p-8 text-center">
+      <div className="mb-3 flex h-16 w-16 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-zinc-500">
+        {icon}
+      </div>
+      <h4 className="mb-1 text-sm font-semibold text-zinc-300">{title}</h4>
+      {hint ? <p className="mb-4 max-w-xs text-xs leading-relaxed text-zinc-500">{hint}</p> : null}
+      {action}
     </div>
   )
 }

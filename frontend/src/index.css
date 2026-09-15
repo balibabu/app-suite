@@ -1,5 +1,7 @@
 @import "tailwindcss";
 
+@custom-variant no-hover (@media (hover: none));
+
 @theme {
   --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
@@ -10,53 +12,48 @@ body,
   height: 100%;
 }
 
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+}
+
 body {
-  @apply bg-slate-950 text-slate-100 antialiased;
+  @apply overflow-x-hidden bg-zinc-950 text-zinc-100 antialiased;
   background-image:
-    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99, 102, 241, 0.18), transparent),
-    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(168, 85, 247, 0.12), transparent);
+    radial-gradient(ellipse 80% 50% at 20% -10%, rgba(99, 102, 241, 0.14), transparent),
+    radial-gradient(ellipse 60% 40% at 90% 10%, rgba(139, 92, 246, 0.1), transparent),
+    radial-gradient(ellipse 70% 50% at 30% 110%, rgba(8, 145, 178, 0.08), transparent);
+  background-attachment: fixed;
 }
 
-.glass {
-  @apply rounded-2xl border border-white/10 bg-white/5 shadow-xl shadow-black/30 backdrop-blur-xl;
+::selection {
+  @apply bg-indigo-500 text-white;
 }
 
-.glass-soft {
-  @apply rounded-xl border border-white/10 bg-white/[0.04] backdrop-blur-lg;
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
 }
 
-@utility btn {
-  @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:pointer-events-none disabled:opacity-50;
+::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.2);
 }
 
-.btn-primary {
-  @apply btn bg-gradient-to-r from-indigo-500 to-violet-500 text-white shadow-lg shadow-indigo-950/50 hover:from-indigo-400 hover:to-violet-400 active:scale-[0.98];
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 9999px;
 }
 
-.btn-ghost {
-  @apply btn border border-white/10 bg-white/5 text-slate-200 backdrop-blur hover:bg-white/10 active:scale-[0.98];
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
 }
 
-.btn-danger {
-  @apply btn border border-red-500/30 bg-red-500/10 text-red-300 hover:bg-red-500/20 active:scale-[0.98];
-}
-
-.input {
-  @apply w-full rounded-xl border border-white/10 bg-black/30 px-3.5 py-2.5 text-sm text-slate-100 shadow-inner shadow-black/30 transition placeholder:text-slate-500 focus:border-indigo-400/60 focus:outline-none focus:ring-2 focus:ring-indigo-500/20;
-}
-
-.label {
-  @apply mb-1.5 block text-xs font-semibold tracking-wide text-slate-400 uppercase;
-}
-
-.blob {
+.orb {
   position: fixed;
   border-radius: 9999px;
-  filter: blur(90px);
-  opacity: 0.5;
   pointer-events: none;
   z-index: -1;
-  animation: drift 18s ease-in-out infinite alternate;
+  animation: drift 20s ease-in-out infinite alternate;
 }
 
 @keyframes drift {
@@ -64,20 +61,177 @@ body {
     transform: translate3d(0, 0, 0) scale(1);
   }
   to {
-    transform: translate3d(40px, -30px, 0) scale(1.15);
+    transform: translate3d(40px, -30px, 0) scale(1.12);
   }
 }
 
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-::-webkit-scrollbar-thumb {
-  background: rgba(148, 163, 184, 0.25);
-  border-radius: 8px;
+@keyframes toastIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
-::-webkit-scrollbar-track {
-  background: transparent;
+.animate-fadeIn {
+  animation: fadeIn 0.25s ease-out both;
+}
+
+.animate-toastIn {
+  animation: toastIn 0.25s ease-out both;
+}
+
+.glass {
+  @apply rounded-2xl border border-white/10 bg-zinc-900/45 shadow-xl shadow-black/30 backdrop-blur-xl;
+}
+
+.glass-soft {
+  @apply rounded-xl border border-white/5 bg-zinc-900/50 backdrop-blur-md;
+}
+
+@utility btn {
+  @apply inline-flex cursor-pointer items-center justify-center gap-2 rounded-lg px-3.5 py-2 text-xs font-medium whitespace-nowrap transition duration-150 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-400 disabled:pointer-events-none disabled:opacity-50;
+}
+
+.btn-primary {
+  @apply btn bg-indigo-600 text-white shadow-lg shadow-indigo-600/30 hover:bg-indigo-500 active:scale-[0.98];
+}
+
+.btn-ghost {
+  @apply btn border border-white/10 bg-white/5 text-zinc-300 hover:bg-white/10 hover:text-white active:scale-[0.98];
+}
+
+.btn-danger {
+  @apply btn border border-red-500/25 bg-red-500/10 text-red-400 hover:bg-red-500/20 active:scale-[0.98];
+}
+
+.btn-warn {
+  @apply btn border border-amber-500/25 bg-amber-500/10 text-amber-300 hover:bg-amber-500/20 active:scale-[0.98];
+}
+
+.input {
+  @apply w-full rounded-lg border border-white/10 bg-zinc-950/60 px-3 py-2 text-base text-zinc-200 shadow-inner shadow-black/20 transition placeholder:text-zinc-500 focus:border-indigo-500 focus:outline-none sm:text-sm;
+}
+
+select.input {
+  @apply appearance-none bg-zinc-950/80 text-sm;
+}
+
+.input-option {
+  @apply bg-zinc-950 text-zinc-200;
+}
+
+.label {
+  @apply mb-1.5 block text-xs font-semibold tracking-wide text-zinc-400 uppercase;
+}
+
+.field {
+  @apply flex w-full items-center gap-2 rounded-lg border border-white/10 bg-zinc-950/60 px-3 py-2 transition focus-within:border-indigo-500 sm:text-sm;
+}
+
+.field input {
+  @apply w-full bg-transparent text-base text-zinc-200 placeholder:text-zinc-500 focus:outline-none sm:text-sm;
+}
+
+.scrollbar-none {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scrollbar-none::-webkit-scrollbar {
+  display: none;
+}
+
+.markdown {
+  @apply text-sm leading-relaxed text-zinc-300;
+}
+
+.markdown h1 {
+  @apply mb-2.5 text-2xl font-bold text-zinc-50;
+}
+
+.markdown h2 {
+  @apply mt-4 mb-2 text-xl font-semibold text-zinc-100;
+}
+
+.markdown h3 {
+  @apply mt-3 mb-1.5 text-base font-semibold text-zinc-200;
+}
+
+.markdown p {
+  @apply mb-2.5 leading-relaxed;
+}
+
+.markdown ul {
+  @apply mb-2.5 list-disc pl-5;
+}
+
+.markdown ol {
+  @apply mb-2.5 list-decimal pl-5;
+}
+
+.markdown li {
+  @apply mb-1;
+}
+
+.markdown a {
+  @apply text-indigo-400 underline break-words underline-offset-2 hover:text-indigo-300;
+}
+
+.markdown blockquote {
+  @apply my-2.5 rounded-r border-l-4 border-indigo-500 bg-white/[0.02] py-1 pl-3 text-zinc-400;
+}
+
+.markdown code {
+  @apply rounded border border-white/5 bg-black/40 px-1.5 py-0.5 font-mono text-[0.85em] text-pink-400;
+}
+
+.markdown pre {
+  @apply my-2.5 overflow-x-auto rounded-lg border border-white/10 bg-[rgba(10,14,23,0.75)] p-3.5;
+}
+
+.markdown pre code {
+  @apply border-none bg-transparent p-0 font-mono text-emerald-300;
+}
+
+.markdown table {
+  @apply mb-3 w-full border-collapse overflow-hidden text-xs;
+}
+
+.markdown th {
+  @apply border border-white/10 bg-white/5 px-2.5 py-1.5 text-left font-semibold text-zinc-200;
+}
+
+.markdown td {
+  @apply border border-white/10 px-2.5 py-1.5;
+}
+
+.markdown hr {
+  @apply my-4 border-white/10;
+}
+
+.markdown img {
+  @apply max-w-full rounded-lg;
+}
+
+.spoiler {
+  @apply inline-block cursor-pointer rounded bg-zinc-800 px-1.5 py-0.5 text-transparent select-none transition;
+}
+
+.spoiler.revealed {
+  @apply bg-white/10 text-zinc-200;
 }

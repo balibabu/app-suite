@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { LayoutGrid, Lock, ShieldCheck } from 'lucide-react'
 import { useAuth } from '../stores/auth'
 import { store } from '../lib/storage'
 import { Spinner } from '../components/ui'
@@ -22,7 +23,7 @@ export default function AuthPage() {
 
   useEffect(() => {
     if (status === 'locked') setMode('unlock')
-    if (status === 'unlocked') navigate('/notes', { replace: true })
+    if (status === 'unlocked') navigate('/', { replace: true })
   }, [status, navigate])
 
   useEffect(() => {
@@ -38,7 +39,7 @@ export default function AuthPage() {
       if (mode === 'login') await login(username, password)
       else if (mode === 'register') await register(username, password)
       else await unlock(password)
-      navigate('/notes', { replace: true })
+      navigate('/', { replace: true })
     } catch {
       /* error surfaced via store */
     }
@@ -69,22 +70,32 @@ export default function AuthPage() {
     (mode === 'unlock' ? password.length > 0 : usernameValid && passwordValid && confirmValid)
 
   return (
-    <div className="relative flex h-full items-center justify-center overflow-hidden p-4">
-      <div className="blob top-[-15%] left-[10%] h-105 w-105 bg-indigo-600/30" />
-      <div className="blob right-[5%] bottom-[-20%] h-96 w-96 bg-violet-600/25" />
-      <div className="blob top-[30%] right-[25%] h-72 w-72 bg-sky-600/15" />
-      <div className="glass w-full max-w-md p-8">
+    <div className="relative flex min-h-full items-center justify-center overflow-hidden p-4">
+      <div className="orb -top-[15%] -left-[10%] h-[500px] w-[500px] bg-indigo-600/15 blur-[120px]" />
+      <div className="orb top-[40%] -right-[15%] h-[600px] w-[600px] bg-violet-600/15 blur-[140px]" />
+      <div className="orb -bottom-[10%] left-[20%] h-[500px] w-[500px] bg-cyan-600/10 blur-[130px]" />
+
+      <div className="glass w-full max-w-md p-7 sm:p-8">
         <div className="mb-6 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 text-xl shadow-lg shadow-indigo-950/50">
-            🔐
+          <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-gradient-to-tr from-indigo-500 to-violet-500 shadow-lg shadow-indigo-500/20">
+            <LayoutGrid className="h-6 w-6 text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight text-white">AppSuite</h1>
-            <p className="text-xs text-slate-500">notes · tasks · files, end-to-end encrypted</p>
+            <h1 className="text-lg font-bold tracking-tight text-white">AetherSuite</h1>
+            <p className="text-[11px] text-zinc-400">notes · tasks · files, end-to-end encrypted</p>
           </div>
         </div>
+
+        <div className="mb-5 flex items-center gap-2.5 rounded-xl border border-indigo-500/20 bg-indigo-500/5 px-3.5 py-2.5">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-indigo-400" />
+          <p className="text-[11px] leading-relaxed text-zinc-400">
+            SRP-6a authentication with a wrapped vault key — plaintext never touches the wire.
+          </p>
+        </div>
+
         <h2 className="text-lg font-semibold text-white">{title}</h2>
-        <p className="mt-1 mb-6 text-xs leading-relaxed text-slate-400">{subtitle}</p>
+        <p className="mt-1 mb-6 text-xs leading-relaxed text-zinc-400">{subtitle}</p>
+
         <form onSubmit={submit} className="space-y-4">
           {mode !== 'unlock' ? (
             <div>
@@ -96,7 +107,7 @@ export default function AuthPage() {
                 className="input"
                 value={username}
                 onChange={(event) => setUsername(event.target.value.toLowerCase())}
-                placeholder=" lowercase letters, digits, . - _"
+                placeholder="lowercase letters, digits, . - _"
                 autoComplete="username"
                 autoFocus
               />
@@ -141,17 +152,18 @@ export default function AuthPage() {
             </div>
           ) : null}
           {error ? (
-            <p className="rounded-xl border border-red-400/20 bg-red-400/10 px-3 py-2 text-xs text-red-300">
+            <p className="rounded-lg border border-red-400/20 bg-red-400/10 px-3 py-2 text-xs text-red-300">
               {error}
             </p>
           ) : null}
-          <button type="submit" className="btn-primary w-full" disabled={!canSubmit}>
+          <button type="submit" className="btn-primary w-full py-2.5 text-sm" disabled={!canSubmit}>
             {busy ? <Spinner /> : null}
             {mode === 'register' ? 'Create account' : mode === 'unlock' ? 'Unlock' : 'Sign in'}
           </button>
         </form>
+
         {mode !== 'unlock' ? (
-          <p className="mt-6 text-center text-xs text-slate-500">
+          <p className="mt-6 text-center text-xs text-zinc-500">
             {mode === 'login' ? "don't have a vault? " : 'already have a vault? '}
             <button
               onClick={() => {
@@ -159,7 +171,7 @@ export default function AuthPage() {
                 setPassword('')
                 setConfirm('')
               }}
-              className="cursor-pointer font-semibold text-indigo-300 hover:text-indigo-200"
+              className="cursor-pointer font-semibold text-indigo-400 hover:text-indigo-300"
             >
               {mode === 'login' ? 'create one' : 'sign in'}
             </button>
@@ -169,8 +181,9 @@ export default function AuthPage() {
             onClick={async () => {
               await useAuth.getState().logout()
             }}
-            className="mt-6 w-full cursor-pointer text-center text-xs text-slate-500 hover:text-slate-300"
+            className="mt-6 flex w-full cursor-pointer items-center justify-center gap-1.5 text-center text-xs text-zinc-500 transition hover:text-zinc-300"
           >
+            <Lock className="h-3 w-3" />
             sign in as a different user
           </button>
         )}

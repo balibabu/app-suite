@@ -3,9 +3,10 @@ import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-route
 import { sessionExpiredEvent } from './lib/api'
 import { useAuth } from './stores/auth'
 import { useVault } from './stores/vault'
-import { Toaster } from './components/ui'
+import { Spinner, Toaster } from './components/ui'
 import Layout from './components/Layout'
 import AuthPage from './pages/AuthPage'
+import HomePage from './pages/HomePage'
 import NotesPage from './pages/NotesPage'
 import TasksPage from './pages/TasksPage'
 import FilesPage from './pages/FilesPage'
@@ -44,7 +45,7 @@ function RequireVault({ children }: { children: React.ReactNode }) {
   if (status === 'boot') {
     return (
       <div className="flex h-full items-center justify-center">
-        <div className="glass px-8 py-6 text-sm text-slate-400">unlocking…</div>
+        <Spinner className="h-6 w-6 text-indigo-400" />
       </div>
     )
   }
@@ -67,7 +68,7 @@ export default function App() {
             </RequireVault>
           }
         >
-          <Route index element={<Navigate to="/notes" replace />} />
+          <Route index element={<HomePage />} />
           <Route path="notes/:noteId?" element={<NotesPage />} />
           <Route path="tasks" element={<TasksPage />} />
           <Route path="files" element={<FilesPage />} />

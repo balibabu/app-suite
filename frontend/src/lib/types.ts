@@ -33,6 +33,8 @@ export interface WireItem {
   content?: string
   meta_ciphertext?: string
   task_list?: string | null
+  folder?: string | null
+  parent?: string | null
   format_version: number
   item_version: number
   deleted_at: string | null
@@ -58,6 +60,10 @@ export interface NotePlain {
   title: string
   body: string
   edited: number
+}
+
+export interface FolderPlain {
+  name: string
 }
 
 export interface TaskPlain {
@@ -95,6 +101,14 @@ export interface TaskItem extends VaultItem<TaskPlain> {
   taskList: string | null
 }
 
+export interface NoteItem extends VaultItem<NotePlain> {
+  folder: string | null
+}
+
+export interface FolderItem extends VaultItem<FolderPlain> {
+  parent: string | null
+}
+
 export interface FileItem extends VaultItem<FilePlain> {
   stored: boolean
   serverSize: number
@@ -102,4 +116,4 @@ export interface FileItem extends VaultItem<FilePlain> {
   uploadError: string | null
 }
 
-export type CollectionKey = 'notes' | 'lists' | 'tasks' | 'files'
+export type CollectionKey = 'folders' | 'notes' | 'lists' | 'tasks' | 'files'

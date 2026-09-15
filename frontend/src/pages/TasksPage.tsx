@@ -1,7 +1,18 @@
 import { useMemo, useState } from 'react'
+import {
+  Calendar,
+  Check,
+  CheckSquare,
+  ChevronDown,
+  Inbox,
+  ListTodo,
+  Plus,
+  Trash2,
+  X,
+} from 'lucide-react'
 import { useVault } from '../stores/vault'
 import { toast } from '../stores/toast'
-import { EmptyState } from '../components/ui'
+import { EmptyState, Modal, Spinner, SyncBadge } from '../components/ui'
 import type { TaskItem } from '../lib/types'
 
 export default function TasksPage() {
@@ -9,24 +20,29 @@ export default function TasksPage() {
   const tasks = useVault((state) => state.tasks)
   const ready = useVault((state) => state.ready)
   const createList = useVault((state) => state.createList)
-  const renameList = useVault((state) => state.renameList)
   const createTask = useVault((state) => state.createTask)
   const trashItem = useVault((state) => state.trashItem)
 
   const [selected, setSelected] = useState<string | null>(null)
-  const [newListName, setNewListName] = useState('')
-  const [addingList, setAddingList] = useState(false)
   const [newTaskTitle, setNewTaskTitle] = useState('')
+  const [listModalOpen, setListModalOpen] = useState(false)
+  const [newListName, setNewListName] = useState('')
+  const [deleteListId, setDeleteListId] = useState<string | null>(null)
 
   const activeLists = useMemo(
-    () => Object.values(lists).filter((list) => !list.deletedAt).sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    () =>
+      Object.values(lists)
+        .filter((list) => !list.deletedAt)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
     [lists],
   )
 
-  const inboxCount = useMemo(
-    () => Object.values(tasks).filter((task) => !task.deletedAt && task.taskList === null && !task.plain.done).length,
+  const openTasks = useMemo(
+    () => Object.values(tasks).filter((task) => !task.deletedAt && !task.plain.done),
     [tasks],
   )
+
+  const inboxCount = openTasks.filter((task) => task.taskList === null).length
 
   const visibleTasks = useMemo(
     () =>
@@ -36,8 +52,14 @@ export default function TasksPage() {
     [tasks, selected],
   )
 
+  const countFor = (listId: string) => openTasks.filter((task) => task.taskList === listId).length
+
   if (!ready) {
-    return <EmptyState icon="⏳" title="decrypting your tasks…" />
+    return (
+      <div className="flex h-[60vh] items-center justify-center">
+        <Spinner className="h-6 w-6 text-emerald-400" />
+      </div>
+    )
   }
 
   const addTask = () => {
@@ -47,100 +69,93 @@ export default function TasksPage() {
     setNewTaskTitle('')
   }
 
+  const deleteList = async () => {
+    if (!deleteListId) return
+    try {
+      await trashItem('lists', deleteListId)
+      if (selected === deleteListId) setSelected(null)
+    } catch {
+      toast.error('failed to delete list')
+    } finally {
+      setDeleteListId(null)
+    }
+  }
+
   return (
-    <div className="flex min-h-0 flex-1">
-      <section className="flex w-64 shrink-0 flex-col border-r border-white/5">
-        <header className="p-3">
-          <div className="flex items-center justify-between px-1 pb-2">
-            <span className="text-xs font-semibold tracking-wide text-slate-500 uppercase">lists</span>
+    <section className="animate-fadeIn flex flex-col gap-4 lg:h-[calc(100vh-11rem)] lg:flex-row">
+      <aside className="glass shrink-0 p-4 lg:w-64 lg:overflow-y-auto">
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xs font-semibold tracking-wider text-zinc-500 uppercase">lists</h2>
+          <button
+            onClick={() => {
+              setNewListName('')
+              setListModalOpen(true)
+            }}
+            title="new list"
+            className="cursor-pointer rounded-lg border border-white/10 bg-white/5 p-1 text-zinc-400 transition hover:bg-white/10 hover:text-white"
+          >
+            <Plus className="h-3.5 w-3.5" />
+          </button>
+        </div>
+
+        <button
+          onClick={() => setSelected(null)}
+          className={`mb-1.5 flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 text-sm transition ${
+            selected === null
+              ? 'bg-indigo-500/15 font-medium text-white shadow-inner'
+              : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+          }`}
+        >
+          <Inbox className="h-4 w-4 shrink-0" />
+          <span className="flex-1 truncate text-left">inbox</span>
+          <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-zinc-400">
+            {inboxCount}
+          </span>
+        </button>
+
+        {activeLists.map((list) => (
+          <div key={list.id} className="group relative mb-1.5">
             <button
-              onClick={() => setAddingList(true)}
-              className="cursor-pointer rounded-lg px-2 py-0.5 text-sm text-slate-400 hover:bg-white/5 hover:text-white"
-              title="new list"
+              onClick={() => setSelected(list.id)}
+              className={`flex w-full cursor-pointer items-center gap-2.5 rounded-xl px-3 py-2.5 pr-9 text-sm transition ${
+                selected === list.id
+                  ? 'bg-indigo-500/15 font-medium text-white shadow-inner'
+                  : 'text-zinc-400 hover:bg-white/5 hover:text-zinc-200'
+              }`}
             >
-              +
+              <ListTodo className="h-4 w-4 shrink-0 text-emerald-400/80" />
+              <span className="flex-1 truncate text-left">{list.plain.name}</span>
+              <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-zinc-400">
+                {countFor(list.id)}
+              </span>
+            </button>
+            <button
+              onClick={() => setDeleteListId(list.id)}
+              title="delete list (tasks move to inbox)"
+              className="absolute top-1/2 right-2 hidden -translate-y-1/2 cursor-pointer rounded-md p-1 text-zinc-500 transition hover:bg-red-500/20 hover:text-red-400 group-hover:block no-hover:block"
+            >
+              <X className="h-3.5 w-3.5" />
             </button>
           </div>
-          <button
-            onClick={() => setSelected(null)}
-            className={`mb-1 flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-2 text-sm transition ${
-              selected === null ? 'bg-white/10 font-medium text-white shadow-inner' : 'text-slate-400 hover:bg-white/5'
-            }`}
-          >
-            inbox
-            <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-slate-400">{inboxCount}</span>
-          </button>
-          {activeLists.map((list) => {
-            const count = Object.values(tasks).filter(
-              (task) => !task.deletedAt && task.taskList === list.id && !task.plain.done,
-            ).length
-            return (
-              <div key={list.id} className="group relative">
-                <button
-                  onClick={() => setSelected(list.id)}
-                  onDoubleClick={() => {
-                    const next = window.prompt('rename list', list.plain.name)
-                    if (next && next.trim() && next.trim() !== list.plain.name) {
-                      renameList(list.id, next.trim())
-                    }
-                  }}
-                  className={`mb-1 flex w-full cursor-pointer items-center justify-between rounded-xl px-3 py-2 pr-8 text-sm transition ${
-                    selected === list.id
-                      ? 'bg-white/10 font-medium text-white shadow-inner'
-                      : 'text-slate-400 hover:bg-white/5'
-                  }`}
-                >
-                  <span className="truncate">{list.plain.name}</span>
-                  <span className="rounded-full bg-white/10 px-2 py-0.5 text-[10px] text-slate-400">{count}</span>
-                </button>
-                <button
-                  onClick={async () => {
-                    try {
-                      await trashItem('lists', list.id)
-                      if (selected === list.id) setSelected(null)
-                    } catch {
-                      toast.error('failed to delete list')
-                    }
-                  }}
-                  className="absolute top-1/2 right-2 hidden -translate-y-1/2 cursor-pointer rounded px-1 text-xs text-slate-500 hover:text-red-400 group-hover:block"
-                  title="delete list (tasks move to inbox)"
-                >
-                  ✕
-                </button>
-              </div>
-            )
-          })}
-          {addingList ? (
-            <form
-              onSubmit={(event) => {
-                event.preventDefault()
-                const name = newListName.trim()
-                if (name) {
-                  const id = createList(name)
-                  setSelected(id)
-                }
-                setNewListName('')
-                setAddingList(false)
-              }}
-              className="mt-1"
-            >
-              <input
-                autoFocus
-                className="input"
-                placeholder="list name…"
-                value={newListName}
-                onChange={(event) => setNewListName(event.target.value)}
-                onBlur={() => {
-                  setAddingList(false)
-                  setNewListName('')
-                }}
-              />
-            </form>
-          ) : null}
-        </header>
-      </section>
-      <section className="flex min-w-0 flex-1 flex-col">
+        ))}
+      </aside>
+
+      <div className="glass flex min-w-0 flex-1 flex-col overflow-hidden">
         <header className="border-b border-white/5 p-4">
+          <div className="mb-3 flex items-center gap-2.5">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-emerald-500/30 bg-emerald-500/15 text-emerald-400">
+              <CheckSquare className="h-4.5 w-4.5" />
+            </div>
+            <div>
+              <h2 className="text-sm font-semibold text-white">
+                {selected === null ? 'inbox' : lists[selected]?.plain.name ?? 'list'}
+              </h2>
+              <p className="text-[11px] text-zinc-500">
+                {visibleTasks.filter((task) => !task.plain.done).length} open ·{' '}
+                {visibleTasks.filter((task) => task.plain.done).length} done
+              </p>
+            </div>
+          </div>
           <form
             onSubmit={(event) => {
               event.preventDefault()
@@ -148,20 +163,26 @@ export default function TasksPage() {
             }}
             className="flex gap-2"
           >
-            <input
-              className="input flex-1"
-              placeholder={selected === null ? 'add a task to inbox…' : 'add a task…'}
-              value={newTaskTitle}
-              onChange={(event) => setNewTaskTitle(event.target.value)}
-            />
-            <button type="submit" className="btn-primary" disabled={!newTaskTitle.trim()}>
+            <div className="field flex-1">
+              <Plus className="h-4 w-4 shrink-0 text-zinc-500" />
+              <input
+                placeholder={selected === null ? 'add a task to inbox…' : 'add a task…'}
+                value={newTaskTitle}
+                onChange={(event) => setNewTaskTitle(event.target.value)}
+              />
+            </div>
+            <button type="submit" className="btn-primary shrink-0" disabled={!newTaskTitle.trim()}>
               add
             </button>
           </form>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {visibleTasks.length === 0 ? (
-            <EmptyState icon="✓" title="nothing here" hint="add a task above" />
+            <EmptyState
+              icon={<CheckSquare className="h-8 w-8" />}
+              title="nothing here yet"
+              hint="add a task above — it's encrypted before it leaves this device"
+            />
           ) : (
             <div className="space-y-2">
               {visibleTasks.map((task) => (
@@ -170,8 +191,71 @@ export default function TasksPage() {
             </div>
           )}
         </div>
-      </section>
-    </div>
+      </div>
+
+      {listModalOpen ? (
+        <Modal
+          title="Create new list"
+          subtitle="group related tasks together"
+          icon={
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-emerald-500/25 bg-emerald-500/10 text-emerald-400">
+              <ListTodo className="h-5 w-5" />
+            </div>
+          }
+          onClose={() => setListModalOpen(false)}
+        >
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              const name = newListName.trim()
+              if (name) {
+                const id = createList(name)
+                setSelected(id)
+              }
+              setListModalOpen(false)
+            }}
+          >
+            <input
+              autoFocus
+              className="input mb-4"
+              placeholder="list name (e.g. groceries, work)"
+              value={newListName}
+              onChange={(event) => setNewListName(event.target.value)}
+            />
+            <div className="flex justify-end gap-2">
+              <button type="button" className="btn-ghost" onClick={() => setListModalOpen(false)}>
+                cancel
+              </button>
+              <button type="submit" className="btn-primary" disabled={!newListName.trim()}>
+                create list
+              </button>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
+
+      {deleteListId ? (
+        <Modal
+          title="Delete this list?"
+          subtitle="tasks will move back to inbox"
+          icon={
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-red-500/25 bg-red-500/10 text-red-400">
+              <Trash2 className="h-5 w-5" />
+            </div>
+          }
+          onClose={() => setDeleteListId(null)}
+        >
+          <div className="flex justify-end gap-2">
+            <button className="btn-ghost" onClick={() => setDeleteListId(null)}>
+              cancel
+            </button>
+            <button className="btn-danger" onClick={() => void deleteList()}>
+              delete list
+            </button>
+          </div>
+        </Modal>
+      ) : null}
+    </section>
   )
 }
 
@@ -200,18 +284,22 @@ function TaskRow({
   }
 
   return (
-    <div className={`glass-soft p-3 transition ${task.plain.done ? 'opacity-60' : ''}`}>
+    <div
+      className={`glass-soft p-3 transition ${task.plain.done ? 'opacity-55' : ''} ${
+        expanded ? 'border-white/15' : ''
+      }`}
+    >
       <div className="flex items-center gap-3">
         <button
           onClick={() => commit({ done: !task.plain.done })}
           className={`flex h-5 w-5 shrink-0 cursor-pointer items-center justify-center rounded-md border transition ${
             task.plain.done
-              ? 'border-indigo-400 bg-indigo-500 text-white'
-              : 'border-white/20 hover:border-indigo-400'
+              ? 'border-emerald-400 bg-emerald-500 text-white'
+              : 'border-white/20 hover:border-emerald-400'
           }`}
           title={task.plain.done ? 'mark as not done' : 'mark as done'}
         >
-          {task.plain.done ? '✓' : ''}
+          {task.plain.done ? <Check className="h-3.5 w-3.5" /> : ''}
         </button>
         <input
           value={title}
@@ -220,40 +308,36 @@ function TaskRow({
           onKeyDown={(event) => {
             if (event.key === 'Enter') event.currentTarget.blur()
           }}
-          className={`min-w-0 flex-1 bg-transparent text-sm text-slate-100 focus:outline-none ${
-            task.plain.done ? 'line-through decoration-slate-500' : ''
+          className={`min-w-0 flex-1 bg-transparent text-sm text-zinc-100 focus:outline-none ${
+            task.plain.done ? 'line-through decoration-zinc-500' : ''
           }`}
         />
         {task.plain.due ? (
-          <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[10px] text-slate-400">
+          <span className="flex shrink-0 items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-zinc-400">
+            <Calendar className="h-3 w-3" />
             {task.plain.due}
           </span>
         ) : null}
-        {task.sync === 'pending' ? (
-          <span className="h-1.5 w-1.5 shrink-0 animate-pulse rounded-full bg-amber-400" />
-        ) : null}
-        {task.sync === 'error' ? (
-          <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" />
-        ) : null}
+        <SyncBadge sync={task.sync} />
         <button
           onClick={() => setExpanded(!expanded)}
-          className="shrink-0 cursor-pointer rounded-lg px-1.5 py-0.5 text-xs text-slate-500 hover:bg-white/5 hover:text-slate-300"
+          className="shrink-0 cursor-pointer rounded-lg p-1 text-zinc-500 transition hover:bg-white/5 hover:text-zinc-300"
           title="details"
         >
-          {expanded ? '▴' : '▾'}
+          <ChevronDown className={`h-4 w-4 transition-transform ${expanded ? 'rotate-180' : ''}`} />
         </button>
         <button
           onClick={() => onTrash('tasks', task.id).catch(() => toast.error('failed to delete task'))}
-          className="shrink-0 cursor-pointer rounded-lg px-1.5 py-0.5 text-xs text-slate-500 hover:bg-white/5 hover:text-red-400"
+          className="shrink-0 cursor-pointer rounded-lg p-1 text-zinc-500 transition hover:bg-red-500/20 hover:text-red-400"
           title="delete task"
         >
-          🗑
+          <Trash2 className="h-3.5 w-3.5" />
         </button>
       </div>
       {expanded ? (
-        <div className="mt-3 space-y-2 border-t border-white/5 pt-3 pl-8">
-          <div className="flex gap-2">
-            <div className="flex-1">
+        <div className="mt-3 ml-8 space-y-2.5 border-t border-white/5 pt-3">
+          <div className="grid gap-2.5 sm:grid-cols-2">
+            <div>
               <label className="label">due date</label>
               <input
                 type="date"
@@ -265,18 +349,18 @@ function TaskRow({
                 }}
               />
             </div>
-            <div className="flex-1">
+            <div>
               <label className="label">list</label>
               <select
                 className="input"
                 value={task.taskList ?? ''}
-                onChange={(event) =>
-                  saveTask(task.id, task.plain, event.target.value || null)
-                }
+                onChange={(event) => saveTask(task.id, task.plain, event.target.value || null)}
               >
-                <option value="">inbox</option>
+                <option className="input-option" value="">
+                  inbox
+                </option>
                 {lists.map((list) => (
-                  <option key={list.id} value={list.id}>
+                  <option className="input-option" key={list.id} value={list.id}>
                     {list.plain.name}
                   </option>
                 ))}

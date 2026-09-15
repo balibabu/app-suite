@@ -86,7 +86,7 @@ async function srpLogin(username: string, password: string) {
   return { session, challenge, verify }
 }
 
-describe.runIf(() => backendUp)('live backend end-to-end', () => {
+describe.skipIf(!backendUp)('live backend end-to-end', () => {
   it('registers a vault account', async () => {
     const salt = toHex(randomBytes(16))
     const verifier = await deriveVerifier(salt, USERNAME, PASSWORD)
@@ -196,6 +196,50 @@ describe.runIf(() => backendUp)('live backend end-to-end', () => {
     )
     expect(delta.status).toBe(200)
     expect(delta.data.some((item: any) => item.id === noteId)).toBe(true)
+  })
+
+  it('creates nested note folders and assigns notes to them', async () => {
+    const rootFolderId = crypto.randomUUID()
+    const rootBlob = await encryptBlob(ctx.key!, JSON.stringify({ name: 'Work & Projects' }))
+    const rootFolder = await api(
+      'PUT',
+      `/notes/folders/${rootFolderId}/`,
+      { format_version: 1, content: rootBlob, parent: null },
+      ctx.access,
+    )
+    expect(rootFolder.status).toBe(201)
+    expect(rootFolder.data.parent).toBeNull()
+
+    const nestedId = crypto.randomUUID()
+    const nestedBlob = await encryptBlob(ctx.key!, JSON.stringify({ name: 'Nexus UI Core' }))
+    const nested = await api(
+      'PUT',
+      `/notes/folders/${nestedId}/`,
+      { format_version: 1, content: nestedBlob, parent: rootFolderId },
+      ctx.access,
+    )
+    expect(nested.status).toBe(201)
+    expect(nested.data.parent).toBe(rootFolderId)
+
+    const noteId = crypto.randomUUID()
+    const noteBlob = await encryptBlob(ctx.key!, JSON.stringify({ title: 'specs', body: 'frosted glass', edited: Date.now() }))
+    const note = await api(
+      'PUT',
+      `/notes/${noteId}/`,
+      { format_version: 1, content: noteBlob, folder: nestedId },
+      ctx.access,
+    )
+    expect(note.status).toBe(201)
+    expect(note.data.folder).toBe(nestedId)
+
+    const inFolder = await api('GET', `/notes/?folder=${nestedId}`, undefined, ctx.access)
+    expect(inFolder.status).toBe(200)
+    expect(inFolder.data).toHaveLength(1)
+    expect(JSON.parse(await decryptBlob(ctx.key!, inFolder.data[0].content)).title).toBe('specs')
+
+    const folderTree = await api('GET', `/notes/folders/?parent=${rootFolderId}`, undefined, ctx.access)
+    expect(folderTree.status).toBe(200)
+    expect(folderTree.data.some((item: any) => item.id === nestedId)).toBe(true)
   })
 
   it('manages task lists and tasks with encrypted content', async () => {
