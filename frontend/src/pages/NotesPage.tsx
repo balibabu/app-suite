@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
+  AlertTriangle,
   Bold,
   ChevronRight,
   Code,
@@ -414,20 +415,22 @@ function NoteEditor({
   const [mode, setMode] = useState<EditorMode>(() =>
     typeof window !== 'undefined' && window.innerWidth < 768 ? 'write' : 'split',
   )
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const [confirmClose, setConfirmClose] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 
-  useEffect(() => {
-    return () => {
-      if (timer.current) clearTimeout(timer.current)
-    }
-  }, [])
+  const dirty = title !== note.plain.title || body !== note.plain.body
 
-  const schedule = (nextTitle: string, nextBody: string) => {
-    if (timer.current) clearTimeout(timer.current)
-    timer.current = setTimeout(() => {
-      saveNote(note.id, { title: nextTitle, body: nextBody, edited: Date.now() })
-    }, 500)
+  const requestClose = () => {
+    if (dirty) {
+      setConfirmClose(true)
+      return
+    }
+    onClose()
+  }
+
+  const saveAndClose = () => {
+    saveNote(note.id, { title, body, edited: Date.now() })
+    onClose()
   }
 
   const insertSyntax = (before: string, after: string) => {
@@ -438,7 +441,6 @@ function NoteEditor({
     const selected = body.substring(start, end)
     const next = body.substring(0, start) + before + selected + after + body.substring(end)
     setBody(next)
-    schedule(title, next)
     requestAnimationFrame(() => {
       textarea.focus()
       textarea.setSelectionRange(start + before.length, end + before.length)
@@ -448,23 +450,14 @@ function NoteEditor({
   const folderOptions = Object.values(folders).filter((folder) => !folder.deletedAt)
 
   return createPortal(
-    <div
-      className="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-3 backdrop-blur-md sm:p-6"
-      onClick={onClose}
-    >
-      <div
-        className="flex h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-zinc-900/90 shadow-2xl backdrop-blur-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <div className="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md sm:p-6">
+      <div className="flex h-dvh w-full flex-col overflow-hidden bg-zinc-900/90 shadow-2xl backdrop-blur-2xl sm:h-[94vh] sm:max-w-6xl sm:rounded-2xl sm:border sm:border-white/10">
         <div className="flex items-center justify-between border-b border-white/10 bg-zinc-950/40 px-4 py-3">
           <div className="mr-4 flex flex-1 items-center gap-2">
             <FileEdit className="h-4 w-4 shrink-0 text-indigo-400" />
             <input
               value={title}
-              onChange={(event) => {
-                setTitle(event.target.value)
-                schedule(event.target.value, body)
-              }}
+              onChange={(event) => setTitle(event.target.value)}
               className="w-full max-w-sm border-b border-transparent bg-transparent px-1 py-0.5 text-sm font-semibold text-white transition outline-none placeholder:text-zinc-600 hover:border-white/20 focus:border-indigo-500"
               placeholder="Note title..."
             />
@@ -494,7 +487,7 @@ function NoteEditor({
               <Trash2 className="h-4 w-4" />
             </button>
             <button
-              onClick={onClose}
+              onClick={requestClose}
               className="cursor-pointer rounded-lg border border-white/10 bg-white/5 p-1.5 text-zinc-400 transition hover:bg-white/10 hover:text-white"
             >
               <X className="h-4 w-4" />
@@ -554,10 +547,7 @@ function NoteEditor({
             <textarea
               ref={textareaRef}
               value={body}
-              onChange={(event) => {
-                setBody(event.target.value)
-                schedule(title, event.target.value)
-              }}
+              onChange={(event) => setBody(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === 'Tab') {
                   event.preventDefault()
@@ -579,11 +569,36 @@ function NoteEditor({
 
         <div className="flex items-center justify-between border-t border-white/5 bg-zinc-950/40 px-4 py-2.5 text-xs text-zinc-500">
           <span>{body.length} characters</span>
-          <button onClick={onClose} className="btn-primary">
+          <button onClick={saveAndClose} className="btn-primary">
             save & close
           </button>
         </div>
       </div>
+
+      {confirmClose ? (
+        <Modal
+          title="unsaved changes"
+          subtitle="this note has edits that are not saved yet"
+          icon={
+            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-500/20 bg-amber-500/10 text-amber-400">
+              <AlertTriangle className="h-5 w-5" />
+            </div>
+          }
+          onClose={() => setConfirmClose(false)}
+        >
+          <div className="flex justify-end gap-2">
+            <button className="btn-ghost" onClick={() => setConfirmClose(false)}>
+              keep editing
+            </button>
+            <button className="btn-danger" onClick={onClose}>
+              discard
+            </button>
+            <button className="btn-primary" onClick={saveAndClose}>
+              save
+            </button>
+          </div>
+        </Modal>
+      ) : null}
     </div>,
     document.body,
   )

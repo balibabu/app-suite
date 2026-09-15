@@ -74,14 +74,8 @@ export function Modal({
     return () => window.removeEventListener('keydown', handler)
   }, [onClose])
   return createPortal(
-    <div
-      className="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-      onClick={onClose}
-    >
-      <div
-        className="glass w-full max-w-sm border-white/10 bg-zinc-900/95 p-5 shadow-2xl"
-        onClick={(event) => event.stopPropagation()}
-      >
+    <div className="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <div className="glass w-full max-w-sm border-white/10 bg-zinc-900/95 p-5 shadow-2xl">
         <div className="mb-4 flex items-center gap-3">
           {icon ? <div className="shrink-0">{icon}</div> : null}
           <div className="min-w-0">
