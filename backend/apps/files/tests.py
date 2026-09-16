@@ -108,3 +108,81 @@ class FileApiTests(BaseAPITestCase):
         with override_settings(MAX_FILE_SIZE=4):
             response = self.upload_content(payload=b"way-too-many-bytes")
         self.assertEqual(response.status_code, 413)
+
+    def test_file_folders_crud_and_assignment(self):
+        root_id = "5a1c2d3e-4f5b-4c6d-8e7f-9a0b1c2d3e4f"
+        root = self.client_api.put(
+            BASE + "folders/" + root_id + "/",
+            {"format_version": 1, "content": "folder-cipher", "parent": None},
+            format="json",
+        )
+        self.assertEqual(root.status_code, 201)
+        self.assertIsNone(root.data["parent"])
+
+        nested_id = "6b2d3e4f-5a6c-4d7e-8f9a-0b1c2d3e4f5a"
+        nested = self.client_api.put(
+            BASE + "folders/" + nested_id + "/",
+            {"format_version": 1, "content": "nested-cipher", "parent": root_id},
+            format="json",
+        )
+        self.assertEqual(nested.status_code, 201)
+        self.assertEqual(nested.data["parent"], root_id)
+
+        assigned = self.client_api.put(
+            BASE + FILE_ID + "/",
+            {"meta_ciphertext": "meta-cipher", "folder": nested_id},
+            format="json",
+        )
+        self.assertIn(assigned.status_code, (200, 201))
+        self.assertEqual(assigned.data["folder"], nested_id)
+
+        inFolder = self.client_api.get(BASE + "?folder=" + nested_id)
+        self.assertEqual(inFolder.status_code, 200)
+        self.assertTrue(any(item["id"] == FILE_ID for item in inFolder.data))
+
+        children = self.client_api.get(BASE + "folders/?parent=" + root_id)
+        self.assertEqual(children.status_code, 200)
+        self.assertTrue(any(item["id"] == nested_id for item in children.data))
+
+    def test_trashing_folder_cascades_to_files(self):
+        root_id = "7c3e4f5a-6b7d-4e8f-8a0b-1c2d3e4f5a6b"
+        self.client_api.put(
+            BASE + "folders/" + root_id + "/",
+            {"format_version": 1, "content": "folder-cipher"},
+            format="json",
+        )
+        self.client_api.put(
+            BASE + FILE_ID + "/",
+            {"meta_ciphertext": "meta-cipher", "folder": root_id},
+            format="json",
+        )
+        trashed = self.client_api.delete(BASE + "folders/" + root_id + "/")
+        self.assertEqual(trashed.status_code, 204)
+        listing = self.client_api.get(BASE)
+        self.assertFalse(any(item["id"] == FILE_ID for item in listing.data))
+        restore = self.client_api.post(BASE + "folders/" + root_id + "/restore/")
+        self.assertEqual(restore.status_code, 200)
+        self.assertIsNone(restore.data["deleted_at"])
+        listing = self.client_api.get(BASE)
+        self.assertTrue(any(item["id"] == FILE_ID for item in listing.data))
+
+    def test_purging_folder_frees_storage(self):
+        root_id = "8d4f5a6b-7c8e-4f9a-8b0c-2d3e4f5a6b7c"
+        self.client_api.put(
+            BASE + "folders/" + root_id + "/",
+            {"format_version": 1, "content": "folder-cipher"},
+            format="json",
+        )
+        self.create_file_meta()
+        self.client_api.put(
+            BASE + FILE_ID + "/",
+            {"meta_ciphertext": "meta-cipher", "folder": root_id},
+            format="json",
+        )
+        self.upload_content()
+        purged = self.client_api.delete(BASE + "folders/" + root_id + "/?purge=true")
+        self.assertEqual(purged.status_code, 204)
+        me = self.client_api.get("/api/v1/auth/me/")
+        self.assertEqual(me.data["storage_used"], 0)
+        gone = self.client_api.get(BASE + FILE_ID + "/")
+        self.assertEqual(gone.status_code, 404)

@@ -292,6 +292,7 @@ export default function NotesPage() {
         <NoteEditor
           key={active.id}
           note={active}
+          isNew={!active.plain.title && !active.plain.body}
           folders={folders}
           onClose={() => navigate('/notes', { replace: true })}
           onTrash={() =>
@@ -399,11 +400,13 @@ const SNIPPETS: { icon: typeof Bold; label: string; before: string; after: strin
 
 function NoteEditor({
   note,
+  isNew,
   folders,
   onClose,
   onTrash,
 }: {
   note: NoteItem
+  isNew: boolean
   folders: Record<string, { id: string; plain: { name: string }; parent: string | null; deletedAt: string | null }>
   onClose: () => void
   onTrash: () => void
@@ -412,9 +415,7 @@ function NoteEditor({
   const moveNote = useVault((state) => state.moveNote)
   const [title, setTitle] = useState(note.plain.title)
   const [body, setBody] = useState(note.plain.body)
-  const [mode, setMode] = useState<EditorMode>(() =>
-    typeof window !== 'undefined' && window.innerWidth < 768 ? 'write' : 'split',
-  )
+  const [mode, setMode] = useState<EditorMode>(() => (isNew ? 'write' : 'preview'))
   const [confirmClose, setConfirmClose] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
 

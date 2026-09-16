@@ -110,10 +110,11 @@ export interface FolderItem extends VaultItem<FolderPlain> {
 }
 
 export interface FileItem extends VaultItem<FilePlain> {
+  folder: string | null
   stored: boolean
   serverSize: number
   uploadProgress: number | null
   uploadError: string | null
 }
 
-export type CollectionKey = 'folders' | 'notes' | 'lists' | 'tasks' | 'files'
+export type CollectionKey = 'folders' | 'fileFolders' | 'notes' | 'lists' | 'tasks' | 'files'

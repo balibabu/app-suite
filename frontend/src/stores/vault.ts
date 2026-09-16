@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import axios from 'axios'
-import { ensureAccess, errorMessage, http, API_URL } from '../lib/api'
+import { ensureAccess, errorMessage, http } from '../lib/api'
 import { decryptBlob, encryptBlob, encryptBytes, decryptBytes } from '../lib/crypto'
 import { useAuth } from './auth'
 import type {
@@ -21,6 +21,7 @@ import type {
 
 const ENDPOINTS: Record<CollectionKey, string> = {
   folders: 'notes/folders',
+  fileFolders: 'files/folders',
   notes: 'notes',
   lists: 'tasks/lists',
   tasks: 'tasks/tasks',
@@ -59,7 +60,8 @@ function toWireBody(collection: CollectionKey, item: VaultItem<unknown>, blob: s
   }
   if (collection === 'tasks') body.task_list = (item as TaskItem).taskList
   if (collection === 'notes') body.folder = (item as NoteItem).folder
-  if (collection === 'folders') body.parent = (item as FolderItem).parent
+  if (collection === 'files') body.folder = (item as FileItem).folder
+  if (collection === 'folders' || collection === 'fileFolders') body.parent = (item as FolderItem).parent
   if (withBase && item.itemVersion > 0) body.base_version = item.itemVersion
   return body
 }
@@ -70,6 +72,7 @@ interface VaultState {
   syncError: string | null
   lastSync: Record<CollectionKey, string | null>
   folders: Record<string, FolderItem>
+  fileFolders: Record<string, FolderItem>
   notes: Record<string, NoteItem>
   lists: Record<string, VaultItem<ListPlain>>
   tasks: Record<string, TaskItem>
@@ -87,9 +90,12 @@ interface VaultState {
   saveTask: (id: string, plain: TaskPlain, taskList?: string | null) => void
   trashItem: (collection: CollectionKey, id: string) => Promise<void>
   trashFolder: (id: string) => Promise<void>
+  createFileFolder: (parent: string | null, name: string) => string
+  trashFileFolder: (id: string) => Promise<void>
+  moveFile: (id: string, folder: string | null) => void
   restoreItem: (collection: CollectionKey, id: string) => Promise<void>
   purgeItem: (collection: CollectionKey, id: string) => Promise<void>
-  uploadFile: (file: File) => Promise<void>
+  uploadFile: (file: File, folder?: string | null) => Promise<void>
   retryUpload: (id: string) => Promise<void>
   downloadFile: (id: string) => Promise<void>
   uploadAbort: (id: string) => Promise<void>
@@ -131,6 +137,7 @@ export const useVault = create<VaultState>((set, get) => {
         if (existing?.sync === 'pending') return state
         switch (collection) {
           case 'folders':
+          case 'fileFolders':
             record[wire.id] = { ...makeItem<FolderPlain>(wire, plain), parent: wire.parent ?? null }
             break
           case 'notes':
@@ -148,6 +155,7 @@ export const useVault = create<VaultState>((set, get) => {
             const previous = record[wire.id] as FileItem | undefined
             const item: FileItem = {
               ...makeItem<FilePlain>(wire, plain),
+              folder: wire.folder ?? null,
               stored: wire.stored ?? false,
               serverSize: wire.size ?? 0,
               uploadProgress: previous?.uploadProgress ?? null,
@@ -238,12 +246,12 @@ export const useVault = create<VaultState>((set, get) => {
     })
   }
 
-  function folderDescendants(id: string): Set<string> {
+  function folderDescendants(collection: 'folders' | 'fileFolders', id: string): Set<string> {
     const descendants = new Set([id])
     let grew = true
     while (grew) {
       grew = false
-      for (const folder of Object.values(get().folders)) {
+      for (const folder of Object.values(get()[collection])) {
         if (!descendants.has(folder.id) && folder.parent && descendants.has(folder.parent)) {
           descendants.add(folder.id)
           grew = true
@@ -253,12 +261,26 @@ export const useVault = create<VaultState>((set, get) => {
     return descendants
   }
 
-  function cascadeFolders(state: VaultState, ids: Set<string>, deletedAt: string | null): Partial<VaultState> {
-    const folders = { ...state.folders }
-    const notes = { ...state.notes }
+  function cascadeFolders(
+    collection: 'folders' | 'fileFolders',
+    state: VaultState,
+    ids: Set<string>,
+    deletedAt: string | null,
+  ): Partial<VaultState> {
+    const folders = { ...state[collection] }
     for (const folderId of ids) {
       if (folders[folderId]) folders[folderId] = { ...folders[folderId], deletedAt, sync: 'synced' as SyncState }
     }
+    if (collection === 'fileFolders') {
+      const files = { ...state.files }
+      for (const file of Object.values(files)) {
+        if (file.folder && ids.has(file.folder)) {
+          files[file.id] = { ...file, deletedAt, sync: 'synced' as SyncState }
+        }
+      }
+      return { fileFolders: folders, files }
+    }
+    const notes = { ...state.notes }
     for (const note of Object.values(notes)) {
       if (note.folder && ids.has(note.folder)) {
         notes[note.id] = { ...note, deletedAt, sync: 'synced' as SyncState }
@@ -271,8 +293,9 @@ export const useVault = create<VaultState>((set, get) => {
     ready: false,
     syncing: false,
     syncError: null,
-    lastSync: { folders: null, notes: null, lists: null, tasks: null, files: null },
+    lastSync: { folders: null, fileFolders: null, notes: null, lists: null, tasks: null, files: null },
     folders: {},
+    fileFolders: {},
     notes: {},
     lists: {},
     tasks: {},
@@ -286,8 +309,9 @@ export const useVault = create<VaultState>((set, get) => {
         ready: false,
         syncing: false,
         syncError: null,
-        lastSync: { folders: null, notes: null, lists: null, tasks: null, files: null },
+        lastSync: { folders: null, fileFolders: null, notes: null, lists: null, tasks: null, files: null },
         folders: {},
+        fileFolders: {},
         notes: {},
         lists: {},
         tasks: {},
@@ -382,19 +406,46 @@ export const useVault = create<VaultState>((set, get) => {
 
     async trashFolder(id) {
       const now = new Date().toISOString()
-      const descendants = folderDescendants(id)
+      const descendants = folderDescendants('folders', id)
       for (const folderId of descendants) cancelPush('folders', folderId)
       for (const note of Object.values(get().notes)) {
         if (note.folder && descendants.has(note.folder)) cancelPush('notes', note.id)
       }
       await http.delete(`/notes/folders/${id}/`)
-      set((state) => cascadeFolders(state, descendants, now))
+      set((state) => cascadeFolders('folders', state, descendants, now))
+    },
+
+    createFileFolder(parent, name) {
+      const id = crypto.randomUUID()
+      const item: FolderItem = {
+        ...baseItem<FolderPlain>(id, { name }),
+        parent,
+      }
+      insertItem<FolderPlain>('fileFolders', item)
+      schedulePush('fileFolders', id, true)
+      return id
+    },
+
+    async trashFileFolder(id) {
+      const now = new Date().toISOString()
+      const descendants = folderDescendants('fileFolders', id)
+      for (const folderId of descendants) cancelPush('fileFolders', folderId)
+      for (const file of Object.values(get().files)) {
+        if (file.folder && descendants.has(file.folder)) cancelPush('files', file.id)
+      }
+      await http.delete(`/files/folders/${id}/`)
+      set((state) => cascadeFolders('fileFolders', state, descendants, now))
+    },
+
+    moveFile(id, folder) {
+      patchItem('files', id, { folder, sync: 'pending' })
+      schedulePush('files', id, true)
     },
 
     async restoreItem(collection, id) {
       const { data } = await http.post<WireItem>(`/${ENDPOINTS[collection]}/${id}/restore/`)
-      if (collection === 'folders') {
-        set((state) => cascadeFolders(state, folderDescendants(id), null))
+      if (collection === 'folders' || collection === 'fileFolders') {
+        set((state) => cascadeFolders(collection, state, folderDescendants(collection, id), null))
         patchItem(collection, id, { itemVersion: data.item_version, updatedAt: data.updated_at })
         return
       }
@@ -409,13 +460,20 @@ export const useVault = create<VaultState>((set, get) => {
     async purgeItem(collection, id) {
       cancelPush(collection, id)
       await http.delete(`/${ENDPOINTS[collection]}/${id}/?purge=true`)
-      if (collection === 'folders') {
-        const descendants = folderDescendants(id)
-        for (const folderId of descendants) cancelPush('folders', folderId)
+      if (collection === 'folders' || collection === 'fileFolders') {
+        const descendants = folderDescendants(collection, id)
+        for (const folderId of descendants) cancelPush(collection, folderId)
         set((state) => {
-          const folders = { ...state.folders }
-          const notes = { ...state.notes }
+          const folders = { ...state[collection] }
           for (const folderId of descendants) delete folders[folderId]
+          if (collection === 'fileFolders') {
+            const files = { ...state.files }
+            for (const file of Object.values(files)) {
+              if (file.folder && descendants.has(file.folder)) delete files[file.id]
+            }
+            return { fileFolders: folders, files }
+          }
+          const notes = { ...state.notes }
           for (const note of Object.values(notes)) {
             if (note.folder && descendants.has(note.folder)) delete notes[note.id]
           }
@@ -428,12 +486,12 @@ export const useVault = create<VaultState>((set, get) => {
           return { [collection]: record } as unknown as Partial<VaultState>
         })
       }
-      if (collection === 'files') {
+      if (collection === 'files' || collection === 'fileFolders') {
         await useAuth.getState().refreshMe().catch(() => undefined)
       }
     },
 
-    async uploadFile(file) {
+    async uploadFile(file, folder = null) {
       const id = crypto.randomUUID()
       const meta: FilePlain = {
         name: file.name,
@@ -443,6 +501,7 @@ export const useVault = create<VaultState>((set, get) => {
       }
       const item: FileItem = {
         ...baseItem<FilePlain>(id, meta),
+        folder,
         stored: false,
         serverSize: 0,
         uploadProgress: 0,
@@ -454,6 +513,7 @@ export const useVault = create<VaultState>((set, get) => {
         id,
         meta_ciphertext: metaBlob,
         format_version: 1,
+        folder,
       })
       patchItem('files', id, { itemVersion: created.item_version, createdAt: created.created_at, updatedAt: created.updated_at, sync: 'synced' })
       const encrypted = await encryptBytes(master(), new Uint8Array(await file.arrayBuffer()))
@@ -472,7 +532,7 @@ export const useVault = create<VaultState>((set, get) => {
     async downloadFile(id) {
       const item = get().files[id]
       if (!item) return
-      const { data } = await http.get(`${API_URL}/files/${id}/content/`, {
+      const { data } = await http.get(`/files/${id}/content/`, {
         responseType: 'arraybuffer',
       })
       const bytes = await decryptBytes(master(), new Uint8Array(data))

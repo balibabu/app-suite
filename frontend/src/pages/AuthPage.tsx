@@ -40,6 +40,22 @@ export default function AuthPage() {
     }
   }, [status])
 
+  useEffect(() => {
+    if (mode !== 'pin' || busy || !/^\d{4}$/.test(pin)) return
+    let cancelled = false
+    void (async () => {
+      try {
+        await unlockWithPin(pin)
+        if (!cancelled) navigate('/', { replace: true })
+      } catch {
+        if (!cancelled) setPinValue('')
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [mode, pin, busy, unlockWithPin, navigate])
+
   const submit = async (event: React.FormEvent) => {
     event.preventDefault()
     try {

@@ -8,7 +8,7 @@ import type { CollectionKey } from '../lib/types'
 interface TrashEntry {
   id: string
   collection: CollectionKey
-  kind: 'note' | 'list' | 'task' | 'file' | 'folder'
+  kind: 'note' | 'list' | 'task' | 'file' | 'folder' | 'fileFolder'
   label: string
   detail: string
   updatedAt: string
@@ -20,17 +20,19 @@ const KIND_ICONS = {
   list: ListTodo,
   file: HardDrive,
   folder: Folder,
+  fileFolder: Folder,
 } as const
 
 export default function TrashPage() {
   const folders = useVault((state) => state.folders)
+  const fileFolders = useVault((state) => state.fileFolders)
   const notes = useVault((state) => state.notes)
   const lists = useVault((state) => state.lists)
   const tasks = useVault((state) => state.tasks)
   const files = useVault((state) => state.files)
   const restoreItem = useVault((state) => state.restoreItem)
   const purgeItem = useVault((state) => state.purgeItem)
-  const [filter, setFilter] = useState<'all' | 'note' | 'task' | 'list' | 'file' | 'folder'>('all')
+  const [filter, setFilter] = useState<'all' | 'note' | 'task' | 'list' | 'file' | 'folder' | 'fileFolder'>('all')
 
   const entries = useMemo<TrashEntry[]>(() => {
     const result: TrashEntry[] = []
@@ -42,6 +44,17 @@ export default function TrashPage() {
           kind: 'folder',
           label: folder.plain.name,
           detail: 'category',
+          updatedAt: folder.deletedAt,
+        })
+    }
+    for (const folder of Object.values(fileFolders)) {
+      if (folder.deletedAt)
+        result.push({
+          id: folder.id,
+          collection: 'fileFolders',
+          kind: 'fileFolder',
+          label: folder.plain.name,
+          detail: 'file folder',
           updatedAt: folder.deletedAt,
         })
     }
@@ -90,7 +103,7 @@ export default function TrashPage() {
         })
     }
     return result.sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-  }, [folders, notes, lists, tasks, files])
+  }, [folders, fileFolders, notes, lists, tasks, files])
 
   const filtered = filter === 'all' ? entries : entries.filter((entry) => entry.kind === filter)
 
@@ -130,7 +143,7 @@ export default function TrashPage() {
 
       <div className="glass border-white/10 bg-zinc-900/30 p-4 sm:p-6">
         <div className="scrollbar-none mb-4 flex items-center gap-1.5 overflow-x-auto">
-          {(['all', 'note', 'task', 'list', 'file', 'folder'] as const).map((kind) => (
+          {(['all', 'note', 'task', 'list', 'file', 'folder', 'fileFolder'] as const).map((kind) => (
             <button
               key={kind}
               onClick={() => setFilter(kind)}
