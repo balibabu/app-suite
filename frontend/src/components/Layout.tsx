@@ -15,13 +15,19 @@ const NAV = [
 ]
 
 function useClock() {
-  const [time, setTime] = useState('')
+  const [time, setTime] = useState(() =>
+    new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+  )
   useEffect(() => {
-    const tick = () =>
+    // align to the next minute boundary so the clock ticks once per minute, not once per second
+    let timer: ReturnType<typeof setTimeout>
+    const tick = () => {
       setTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }))
+      const now = new Date()
+      timer = setTimeout(tick, (60 - now.getSeconds()) * 1000 - now.getMilliseconds())
+    }
     tick()
-    const interval = setInterval(tick, 1000)
-    return () => clearInterval(interval)
+    return () => clearTimeout(timer)
   }, [])
   return time
 }
@@ -58,11 +64,11 @@ export default function Layout() {
 
   return (
     <div className="relative flex min-h-full flex-col">
-      <div className="orb -top-[15%] -left-[10%] h-[500px] w-[500px] bg-indigo-600/15 blur-[120px]" />
-      <div className="orb top-[40%] -right-[15%] h-[600px] w-[600px] bg-violet-600/15 blur-[140px]" />
-      <div className="orb -bottom-[10%] left-[20%] h-[500px] w-[500px] bg-cyan-600/10 blur-[130px]" />
+      <div className="orb orb-indigo -top-[15%] -left-[10%] h-[500px] w-[500px]" />
+      <div className="orb orb-violet top-[40%] -right-[15%] h-[600px] w-[600px]" />
+      <div className="orb orb-cyan -bottom-[10%] left-[20%] h-[500px] w-[500px]" />
 
-      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/5 bg-zinc-950/60 px-4 py-3.5 backdrop-blur-xl sm:px-8">
+      <header className="sticky top-0 z-30 flex items-center justify-between border-b border-white/5 bg-zinc-950/70 px-4 py-3.5 backdrop-blur-md sm:px-8">
         <button
           onClick={() => navigate('/')}
           title="suite home"
@@ -83,7 +89,7 @@ export default function Layout() {
             <div className="flex items-center justify-end gap-1.5 text-[10px] text-emerald-400">
               <span
                 className={`h-1.5 w-1.5 rounded-full ${
-                  syncError ? 'bg-red-400' : syncing ? 'animate-pulse bg-amber-400' : 'animate-pulse bg-emerald-400'
+                  syncError ? 'bg-red-400' : syncing ? 'bg-amber-400' : 'bg-emerald-400'
                 }`}
               />
               {syncError ? 'sync error' : syncing ? 'syncing' : 'system online'}
@@ -106,7 +112,7 @@ export default function Layout() {
         <Outlet />
       </main>
 
-      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-zinc-950/80 px-2 pt-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-2xl sm:hidden">
+      <nav className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-zinc-950/90 px-2 pt-1.5 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur-md sm:hidden">
         <div className="flex items-center justify-around">
           {NAV.map(({ to, label, icon: Icon }) => (
             <NavLink

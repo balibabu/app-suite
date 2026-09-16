@@ -106,9 +106,9 @@ export default function AuthPage() {
 
   return (
     <div className="relative flex min-h-full items-center justify-center overflow-hidden p-4">
-      <div className="orb -top-[15%] -left-[10%] h-[500px] w-[500px] bg-indigo-600/15 blur-[120px]" />
-      <div className="orb top-[40%] -right-[15%] h-[600px] w-[600px] bg-violet-600/15 blur-[140px]" />
-      <div className="orb -bottom-[10%] left-[20%] h-[500px] w-[500px] bg-cyan-600/10 blur-[130px]" />
+      <div className="orb orb-indigo -top-[15%] -left-[10%] h-[500px] w-[500px]" />
+      <div className="orb orb-violet top-[40%] -right-[15%] h-[600px] w-[600px]" />
+      <div className="orb orb-cyan -bottom-[10%] left-[20%] h-[500px] w-[500px]" />
 
       <div className="glass w-full max-w-md p-7 sm:p-8">
         <div className="mb-6 flex items-center gap-3">

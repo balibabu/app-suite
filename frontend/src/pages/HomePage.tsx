@@ -84,7 +84,7 @@ export default function HomePage() {
             <button
               key={app.id}
               onClick={() => navigate(app.to)}
-              className="group relative flex cursor-pointer flex-col justify-between rounded-2xl border border-white/10 bg-zinc-900/45 p-5 text-left backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-zinc-800/50 hover:shadow-2xl hover:shadow-indigo-500/10"
+              className="group relative flex cursor-pointer flex-col justify-between rounded-2xl border border-white/10 bg-zinc-900/55 p-5 text-left transition-[transform,border-color,background-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-white/20 hover:bg-zinc-800/60 hover:shadow-2xl hover:shadow-indigo-500/10"
             >
               <div className="mb-4 flex items-start justify-between">
                 <div
@@ -98,7 +98,7 @@ export default function HomePage() {
               <div>
                 <h3 className="flex items-center gap-2 font-semibold text-zinc-100 transition-colors group-hover:text-indigo-300">
                   {app.name}
-                  <ArrowRight className="h-4 w-4 -translate-x-2 text-indigo-400 opacity-0 transition-all group-hover:translate-x-0 group-hover:opacity-100" />
+                  <ArrowRight className="h-4 w-4 -translate-x-2 text-indigo-400 opacity-0 transition-[transform,opacity] group-hover:translate-x-0 group-hover:opacity-100" />
                 </h3>
                 <p className="mt-1 text-xs leading-relaxed text-zinc-400">{app.description}</p>
               </div>

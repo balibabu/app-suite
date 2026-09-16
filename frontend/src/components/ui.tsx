@@ -14,7 +14,7 @@ export function Toaster() {
         return (
           <div
             key={toastItem.id}
-            className={`animate-toastIn pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border p-3.5 shadow-2xl backdrop-blur-2xl ${
+            className={`animate-toastIn pointer-events-auto flex w-full max-w-sm items-start gap-3 rounded-xl border p-3.5 shadow-2xl backdrop-blur-md ${
               isError
                 ? 'border-red-500/30 bg-zinc-900/90'
                 : isSuccess
@@ -124,7 +124,7 @@ export function SyncBadge({ sync }: { sync: 'synced' | 'pending' | 'error' }) {
 export function StatusTag({ active }: { active: boolean }) {
   return active ? (
     <span className="flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1 text-[10px] font-semibold tracking-wider text-emerald-400 uppercase">
-      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
+      <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
       Active
     </span>
   ) : null

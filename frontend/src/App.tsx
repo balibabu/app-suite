@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, Suspense, lazy } from 'react'
 import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { sessionExpiredEvent } from './lib/api'
 import { useAuth } from './stores/auth'
@@ -7,11 +7,13 @@ import { Spinner, Toaster } from './components/ui'
 import Layout from './components/Layout'
 import AuthPage from './pages/AuthPage'
 import HomePage from './pages/HomePage'
-import NotesPage from './pages/NotesPage'
-import TasksPage from './pages/TasksPage'
-import FilesPage from './pages/FilesPage'
-import TrashPage from './pages/TrashPage'
-import SettingsPage from './pages/SettingsPage'
+
+// code-split pages so the initial bundle stays small (faster first paint / LCP)
+const NotesPage = lazy(() => import('./pages/NotesPage'))
+const TasksPage = lazy(() => import('./pages/TasksPage'))
+const FilesPage = lazy(() => import('./pages/FilesPage'))
+const TrashPage = lazy(() => import('./pages/TrashPage'))
+const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 
 function Boot() {
   const boot = useAuth((state) => state.boot)
@@ -69,11 +71,76 @@ export default function App() {
           }
         >
           <Route index element={<HomePage />} />
-          <Route path="notes/:noteId?" element={<NotesPage />} />
-          <Route path="tasks" element={<TasksPage />} />
-          <Route path="files" element={<FilesPage />} />
-          <Route path="trash" element={<TrashPage />} />
-          <Route path="settings" element={<SettingsPage />} />
+          <Route
+            path="notes/:noteId?"
+            element={
+              <Suspense
+                fallback={
+                  <div className="flex h-[60vh] items-center justify-center">
+                    <Spinner className="h-6 w-6 text-indigo-400" />
+                  </div>
+                }
+              >
+                <NotesPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="tasks"
+            element={
+              <Suspense
+                fallback={
+                  <div className="flex h-[60vh] items-center justify-center">
+                    <Spinner className="h-6 w-6 text-emerald-400" />
+                  </div>
+                }
+              >
+                <TasksPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="files"
+            element={
+              <Suspense
+                fallback={
+                  <div className="flex h-[60vh] items-center justify-center">
+                    <Spinner className="h-6 w-6 text-blue-400" />
+                  </div>
+                }
+              >
+                <FilesPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="trash"
+            element={
+              <Suspense
+                fallback={
+                  <div className="flex h-[60vh] items-center justify-center">
+                    <Spinner className="h-6 w-6 text-zinc-400" />
+                  </div>
+                }
+              >
+                <TrashPage />
+              </Suspense>
+            }
+          />
+          <Route
+            path="settings"
+            element={
+              <Suspense
+                fallback={
+                  <div className="flex h-[60vh] items-center justify-center">
+                    <Spinner className="h-6 w-6 text-purple-400" />
+                  </div>
+                }
+              >
+                <SettingsPage />
+              </Suspense>
+            }
+          />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

@@ -238,7 +238,7 @@ export default function NotesPage() {
                       navigate(`/notes/${item.id}`)
                     }
                   }}
-                  className={`group relative flex cursor-pointer flex-col items-center rounded-xl border p-3.5 text-center backdrop-blur-md transition-all duration-200 hover:-translate-y-1 hover:shadow-lg ${
+                  className={`group relative flex cursor-pointer flex-col items-center rounded-xl border p-3.5 text-center transition-[transform,border-color,background-color,box-shadow] duration-200 hover:-translate-y-1 hover:shadow-lg ${
                     !isFolder && item.id === noteId
                       ? 'border-indigo-500/40 bg-zinc-800/60 shadow-lg shadow-indigo-500/10'
                       : 'border-white/5 bg-zinc-900/50 hover:border-white/15 hover:bg-zinc-800/60'
@@ -450,8 +450,8 @@ function NoteEditor({
   const folderOptions = Object.values(folders).filter((folder) => !folder.deletedAt)
 
   return createPortal(
-    <div className="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md sm:p-6">
-      <div className="flex h-dvh w-full flex-col overflow-hidden bg-zinc-900/90 shadow-2xl backdrop-blur-2xl sm:h-[94vh] sm:max-w-6xl sm:rounded-2xl sm:border sm:border-white/10">
+        <div className="animate-fadeIn fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md sm:p-6">
+          <div className="flex h-dvh w-full flex-col overflow-hidden bg-zinc-900/95 shadow-2xl sm:h-[94vh] sm:max-w-6xl sm:rounded-2xl sm:border sm:border-white/10">
         <div className="flex items-center justify-between border-b border-white/10 bg-zinc-950/40 px-4 py-3">
           <div className="mr-4 flex flex-1 items-center gap-2">
             <FileEdit className="h-4 w-4 shrink-0 text-indigo-400" />

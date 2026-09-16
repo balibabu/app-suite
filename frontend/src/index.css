@@ -53,16 +53,18 @@ body {
   border-radius: 9999px;
   pointer-events: none;
   z-index: -1;
-  animation: drift 20s ease-in-out infinite alternate;
 }
 
-@keyframes drift {
-  from {
-    transform: translate3d(0, 0, 0) scale(1);
-  }
-  to {
-    transform: translate3d(40px, -30px, 0) scale(1.12);
-  }
+.orb-indigo {
+  background: radial-gradient(circle, rgba(99, 102, 241, 0.16) 0%, transparent 70%);
+}
+
+.orb-violet {
+  background: radial-gradient(circle, rgba(139, 92, 246, 0.16) 0%, transparent 70%);
+}
+
+.orb-cyan {
+  background: radial-gradient(circle, rgba(8, 145, 178, 0.12) 0%, transparent 70%);
 }
 
 @keyframes fadeIn {
@@ -96,11 +98,13 @@ body {
 }
 
 .glass {
-  @apply rounded-2xl border border-white/10 bg-zinc-900/45 shadow-xl shadow-black/30 backdrop-blur-xl;
+  @apply rounded-2xl border border-white/10 bg-zinc-900/55 shadow-xl shadow-black/30 backdrop-blur-md;
 }
 
+/* no backdrop-filter here: rows sit inside .glass which already blurs,
+   and re-sampling a blur on every row hover repaint is expensive */
 .glass-soft {
-  @apply rounded-xl border border-white/5 bg-zinc-900/50 backdrop-blur-md;
+  @apply rounded-xl border border-white/5 bg-zinc-900/70;
 }
 
 @utility btn {

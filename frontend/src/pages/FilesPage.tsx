@@ -96,7 +96,7 @@ export default function FilesPage() {
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
               <div
-                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-400 transition-all"
+                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-400 transition-[width]"
                 style={{ width: `${pct}%` }}
               />
             </div>
@@ -232,10 +232,10 @@ function FileCard({
 
       {file.uploadProgress !== null ? (
         <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-400 transition-all"
-            style={{ width: `${file.uploadProgress}%` }}
-          />
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-indigo-500 to-violet-400 transition-[width]"
+                style={{ width: `${file.uploadProgress}%` }}
+              />
         </div>
       ) : null}
 
