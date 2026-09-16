@@ -1,5 +1,5 @@
 import { useEffect, Suspense, lazy } from 'react'
-import { BrowserRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
+import { HashRouter, Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { sessionExpiredEvent } from './lib/api'
 import { useAuth } from './stores/auth'
 import { useVault } from './stores/vault'
@@ -57,7 +57,7 @@ function RequireVault({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   return (
-    <BrowserRouter>
+    <HashRouter>
       <Boot />
       <SessionWatch />
       <Routes>
@@ -145,6 +145,6 @@ export default function App() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       <Toaster />
-    </BrowserRouter>
+    </HashRouter>
   )
 }
