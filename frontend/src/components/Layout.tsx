@@ -34,7 +34,7 @@ function useClock() {
 
 export default function Layout() {
   const user = useAuth((state) => state.user)
-  const logout = useAuth((state) => state.logout)
+  const lock = useAuth((state) => state.lock)
   const syncAll = useVault((state) => state.syncAll)
   const syncing = useVault((state) => state.syncing)
   const syncError = useVault((state) => state.syncError)
@@ -96,8 +96,9 @@ export default function Layout() {
             </div>
           </div>
           <button
-            onClick={async () => {
-              await logout()
+            onClick={() => {
+              useVault.getState().reset()
+              lock()
               navigate('/auth')
             }}
             title={`lock @${user?.username ?? ''}`}

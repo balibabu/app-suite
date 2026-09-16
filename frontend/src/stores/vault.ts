@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import axios from 'axios'
-import { errorMessage, http, API_URL } from '../lib/api'
+import { ensureAccess, errorMessage, http, API_URL } from '../lib/api'
 import { decryptBlob, encryptBlob, encryptBytes, decryptBytes } from '../lib/crypto'
 import { useAuth } from './auth'
 import type {
@@ -299,6 +299,7 @@ export const useVault = create<VaultState>((set, get) => {
       if (get().syncing) return
       set({ syncing: true, syncError: null })
       try {
+        await ensureAccess()
         await Promise.all((Object.keys(ENDPOINTS) as CollectionKey[]).map((collection) => syncCollection(collection)))
         set({ ready: true, syncing: false })
       } catch (error) {

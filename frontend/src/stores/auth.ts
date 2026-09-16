@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import axios from 'axios'
 import { bare, errorMessage, ensureAccess, http } from '../lib/api'
 import { toHex, randomBytes, fromB64, toB64 } from '../lib/bytes'
 import { deriveVerifier, clientEphemeral, clientSession } from '../lib/srp'
@@ -21,6 +22,12 @@ function deviceName(): string {
   return navigator.userAgent.slice(0, 128) || 'web'
 }
 
+function pinGuardAvailable(): boolean {
+  if (!store.get('pinguard')) return false
+  const owner = store.get('pinuser')
+  return !owner || owner === store.get('username')
+}
+
 function persistTokens(access: string, refresh: string) {
   store.set('access', access)
   store.set('refresh', refresh)
@@ -28,6 +35,11 @@ function persistTokens(access: string, refresh: string) {
 
 async function finishLogin(user: Me, tokens: Tokens, saltHex: string, password: string) {
   const { master } = await unwrapVault(password, saltHex, user.wrapped_private_key)
+  const previous = store.get('username')
+  if (previous && previous !== user.username) {
+    store.remove('pinguard')
+    store.remove('pinuser')
+  }
   persistTokens(tokens.access, tokens.refresh)
   store.set('username', user.username)
   store.set('wrapped', user.wrapped_private_key)
@@ -50,6 +62,7 @@ interface AuthState {
   unlockWithPin: (pin: string) => Promise<void>
   setPin: (pin: string) => Promise<void>
   clearPin: () => void
+  lock: () => void
   logout: () => Promise<void>
   forceExpired: () => void
   refreshMe: () => Promise<void>
@@ -69,7 +82,8 @@ export const useAuth = create<AuthState>((set, get) => ({
     const refresh = store.get('refresh')
     const masterB64 = store.sessionGet('master')
     if (!refresh) {
-      set({ status: 'anonymous' })
+      const cached = !!store.get('username')
+      set({ status: cached ? 'locked' : 'anonymous', pinAvailable: false })
       return
     }
     if (masterB64) {
@@ -80,13 +94,17 @@ export const useAuth = create<AuthState>((set, get) => ({
         set({ status: 'unlocked', masterKey: key, user: data })
         store.set('wrapped', data.wrapped_private_key)
         return
-      } catch {
-        store.clearAll()
-        set({ status: 'anonymous' })
+      } catch (error) {
+        if (axios.isAxiosError(error) && !error.response) {
+          set({ status: 'locked', pinAvailable: pinGuardAvailable() })
+          return
+        }
+        store.clearSession()
+        set({ status: 'locked', pinAvailable: pinGuardAvailable() })
         return
       }
     }
-    set({ status: 'locked', pinAvailable: !!store.get('pinguard') })
+    set({ status: 'locked', pinAvailable: pinGuardAvailable() })
   },
 
   async login(username, password) {
@@ -152,17 +170,23 @@ export const useAuth = create<AuthState>((set, get) => ({
     try {
       const username = store.get('username') ?? ''
       if (!username) throw new Error('no cached account')
+      try {
+        await ensureAccess()
+      } catch {
+        await get().login(username, password)
+        return
+      }
       const { data: challenge } = await bare.post('/auth/login/challenge/', {
         username,
         purpose: 'login',
       })
-      const { master } = await unwrapVault(password, challenge.srp_salt, store.get('wrapped') ?? '')
+      const { master } = await unwrapVault(password, challenge.srp_salt, store.get('wrapped') ?? '').catch(() => {
+        throw new Error('wrong password')
+      })
       const key = await importMasterKey(master)
-      store.sessionSet('master', toB64(master))
-      set({ status: 'unlocked', masterKey: key, busy: false, error: null })
-      await ensureAccess()
       const { data } = await http.get<Me>('/auth/me/')
-      set({ user: data })
+      store.sessionSet('master', toB64(master))
+      set({ status: 'unlocked', masterKey: key, user: data, busy: false, error: null })
       store.set('wrapped', data.wrapped_private_key)
     } catch (error) {
       const message = errorMessage(error)
@@ -176,17 +200,19 @@ export const useAuth = create<AuthState>((set, get) => ({
     try {
       const guard = store.get('pinguard')
       if (!guard) throw new Error('no pin set on this device')
-      const master = await openPinGuard(guard, pin)
+      const master = await openPinGuard(guard, pin).catch(() => {
+        throw new Error('wrong pin')
+      })
+      await ensureAccess().catch(() => {
+        throw new Error('session expired — unlock with your password instead')
+      })
       const key = await importMasterKey(master)
-      store.sessionSet('master', toB64(master))
-      set({ status: 'unlocked', masterKey: key, busy: false, error: null })
-      await ensureAccess()
       const { data } = await http.get<Me>('/auth/me/')
-      set({ user: data })
+      store.sessionSet('master', toB64(master))
+      set({ status: 'unlocked', masterKey: key, user: data, busy: false, error: null })
       store.set('wrapped', data.wrapped_private_key)
     } catch (error) {
-      const message = errorMessage(error)
-      set({ busy: false, error: message.includes('decrypt') ? 'wrong pin' : message })
+      set({ busy: false, error: errorMessage(error) })
       throw error
     }
   },
@@ -196,13 +222,22 @@ export const useAuth = create<AuthState>((set, get) => ({
     if (!masterB64) throw new Error('vault is locked')
     const guard = await createPinGuard(pin, fromB64(masterB64))
     store.set('pinguard', guard)
+    const username = get().user?.username ?? store.get('username')
+    if (username) store.set('pinuser', username)
     store.remove('pindismiss')
     set({ pinAvailable: true, error: null })
   },
 
   clearPin() {
     store.remove('pinguard')
+    store.remove('pinuser')
     set({ pinAvailable: false, error: null })
+  },
+
+  lock() {
+    store.remove('access')
+    store.sessionRemove('master')
+    set({ status: 'locked', user: null, masterKey: null, error: null, pinAvailable: pinGuardAvailable() })
   },
 
   async logout() {
@@ -216,7 +251,7 @@ export const useAuth = create<AuthState>((set, get) => ({
   },
 
   forceExpired() {
-    store.clearAll()
+    store.clearSession()
     set({ status: 'anonymous', user: null, masterKey: null })
   },
 

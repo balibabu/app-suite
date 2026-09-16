@@ -13,6 +13,17 @@ export const http = axios.create({ baseURL: API_URL })
 
 let refreshInFlight: Promise<void> | null = null
 
+function tokenExpiresIn(token: string): number {
+  try {
+    const part = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(atob(part + '='.repeat((4 - (part.length % 4)) % 4)))
+    if (typeof payload.exp !== 'number') return 0
+    return payload.exp * 1000 - Date.now()
+  } catch {
+    return 0
+  }
+}
+
 async function performRefresh(): Promise<void> {
   const refresh = store.get('refresh')
   if (!refresh) throw new Error('no refresh token')
@@ -22,7 +33,8 @@ async function performRefresh(): Promise<void> {
 }
 
 export async function ensureAccess(): Promise<void> {
-  if (store.get('access')) return
+  const access = store.get('access')
+  if (access && tokenExpiresIn(access) > 30_000) return
   refreshInFlight ??= performRefresh().finally(() => {
     refreshInFlight = null
   })
@@ -52,10 +64,13 @@ http.interceptors.response.use(undefined, async (error: AxiosError) => {
       await refreshInFlight
       config.headers = { ...(config.headers as Record<string, string>), Authorization: `Bearer ${store.get('access')}` }
       return http.request(config)
-    } catch {
-      store.clearAll()
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new CustomEvent(sessionExpiredEvent))
+    } catch (refreshError) {
+      const networkFailure = axios.isAxiosError(refreshError) && !refreshError.response
+      if (!networkFailure) {
+        store.clearSession()
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent(sessionExpiredEvent))
+        }
       }
     }
   }

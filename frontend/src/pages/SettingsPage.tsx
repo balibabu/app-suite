@@ -21,11 +21,15 @@ export default function SettingsPage() {
   const changePassword = useAuth((state) => state.changePassword)
   const deleteAccount = useAuth((state) => state.deleteAccount)
   const logout = useAuth((state) => state.logout)
+  const pinAvailable = useAuth((state) => state.pinAvailable)
+  const setPin = useAuth((state) => state.setPin)
+  const clearPin = useAuth((state) => state.clearPin)
   const navigate = useNavigate()
 
   const [sessions, setSessions] = useState<SessionInfo[]>([])
   const [sessionsLoading, setSessionsLoading] = useState(true)
   const [pwOpen, setPwOpen] = useState(false)
+  const [pinOpen, setPinOpen] = useState(false)
   const [deleteOpen, setDeleteOpen] = useState(false)
 
   const loadSessions = useCallback(async () => {
@@ -91,6 +95,40 @@ export default function SettingsPage() {
         <p className="text-xs leading-relaxed text-zinc-500">
           your password derives the key that wraps your vault. changing it re-wraps the key on this
           device and signs out every other session. the server never learns either key.
+        </p>
+      </div>
+
+      <div className="glass p-5">
+        <div className="mb-4 flex items-center gap-3">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-indigo-500/30 bg-indigo-500/15 text-indigo-400">
+            <KeyRound className="h-5 w-5" />
+          </div>
+          <h2 className="flex-1 text-sm font-semibold text-white">unlock pin</h2>
+          {pinAvailable ? (
+            <div className="flex shrink-0 gap-2">
+              <button className="btn-ghost text-xs" onClick={() => setPinOpen(true)}>
+                change pin
+              </button>
+              <button
+                className="btn-danger px-2.5 py-1 text-[11px]"
+                onClick={() => {
+                  clearPin()
+                  toast.success('pin removed, password required on next visit')
+                }}
+              >
+                remove
+              </button>
+            </div>
+          ) : (
+            <button className="btn-ghost shrink-0 text-xs" onClick={() => setPinOpen(true)}>
+              set pin
+            </button>
+          )}
+        </div>
+        <p className="text-xs leading-relaxed text-zinc-500">
+          {pinAvailable
+            ? 'this device can unlock your vault with a 4-digit pin instead of your password. the pin re-encrypts your vault key locally — a weaker protection than your password.'
+            : 'set a 4-digit pin so revisits on this device ask for the pin instead of your password. the pin re-encrypts your vault key stored locally — weaker than your password.'}
         </p>
       </div>
 
@@ -180,6 +218,16 @@ export default function SettingsPage() {
       </div>
 
       {pwOpen ? <PasswordModal onClose={() => setPwOpen(false)} onSubmit={changePassword} /> : null}
+      {pinOpen ? (
+        <PinModal
+          hasPin={pinAvailable}
+          onClose={() => setPinOpen(false)}
+          onSubmit={async (pin) => {
+            await setPin(pin)
+            toast.success('pin saved')
+          }}
+        />
+      ) : null}
       {deleteOpen ? (
         <DeleteAccountModal
           onClose={() => setDeleteOpen(false)}
@@ -271,6 +319,88 @@ function PasswordModal({
           <button type="submit" className="btn-primary" disabled={!valid || busy}>
             {busy ? <Spinner className="h-3 w-3" /> : null}
             change
+          </button>
+        </div>
+      </form>
+    </Modal>
+  )
+}
+
+function PinModal({
+  hasPin,
+  onClose,
+  onSubmit,
+}: {
+  hasPin: boolean
+  onClose: () => void
+  onSubmit: (pin: string) => Promise<void>
+}) {
+  const [pin, setPin] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+
+  const valid = /^\d{4}$/.test(pin) && pin === confirm
+
+  return (
+    <Modal
+      title={hasPin ? 'Change unlock pin' : 'Set unlock pin'}
+      subtitle="works only on this device"
+      icon={
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-indigo-500/25 bg-indigo-500/10 text-indigo-400">
+          <KeyRound className="h-5 w-5" />
+        </div>
+      }
+      onClose={onClose}
+    >
+      <form
+        className="space-y-3"
+        onSubmit={async (event) => {
+          event.preventDefault()
+          if (!valid) return
+          setBusy(true)
+          setError(null)
+          try {
+            await onSubmit(pin)
+            onClose()
+          } catch (err) {
+            setError(errorMessage(err))
+          } finally {
+            setBusy(false)
+          }
+        }}
+      >
+        <p className="text-xs leading-relaxed text-zinc-400">
+          Your vault key will be stored on this device encrypted with this pin. Next visit only
+          asks for the pin — use "forgot pin" if you ever need your password instead.
+        </p>
+        <input
+          type="password"
+          inputMode="numeric"
+          maxLength={4}
+          className="input text-center font-mono tracking-[0.5em]"
+          placeholder="new pin"
+          value={pin}
+          onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 4))}
+          autoFocus
+        />
+        <input
+          type="password"
+          inputMode="numeric"
+          maxLength={4}
+          className="input text-center font-mono tracking-[0.5em]"
+          placeholder="confirm pin"
+          value={confirm}
+          onChange={(event) => setConfirm(event.target.value.replace(/\D/g, '').slice(0, 4))}
+        />
+        {error ? <p className="text-xs text-red-300">{error}</p> : null}
+        <div className="flex justify-end gap-2 pt-1">
+          <button type="button" className="btn-ghost" onClick={onClose}>
+            cancel
+          </button>
+          <button type="submit" className="btn-primary" disabled={!valid || busy}>
+            {busy ? <Spinner className="h-3 w-3" /> : null}
+            save pin
           </button>
         </div>
       </form>

@@ -17,7 +17,6 @@ export default function AuthPage() {
   const unlock = useAuth((state) => state.unlock)
   const unlockWithPin = useAuth((state) => state.unlockWithPin)
   const setPin = useAuth((state) => state.setPin)
-  const clearPin = useAuth((state) => state.clearPin)
   const navigate = useNavigate()
 
   const [mode, setMode] = useState<Mode>('login')
@@ -218,13 +217,24 @@ export default function AuthPage() {
         {mode === 'pin' ? (
           <button
             onClick={() => {
-              clearPin()
               setPinValue('')
+              setPassword('')
               setMode('unlock')
             }}
             className="mt-4 w-full cursor-pointer text-center text-xs text-zinc-500 transition hover:text-indigo-300"
           >
             forgot pin? unlock with password
+          </button>
+        ) : mode === 'unlock' && pinAvailable ? (
+          <button
+            onClick={() => {
+              setPassword('')
+              setPinValue('')
+              setMode('pin')
+            }}
+            className="mt-4 w-full cursor-pointer text-center text-xs text-zinc-500 transition hover:text-indigo-300"
+          >
+            use pin instead
           </button>
         ) : null}
 
