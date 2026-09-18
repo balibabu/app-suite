@@ -81,6 +81,8 @@ interface VaultState {
   syncAll: () => Promise<void>
   createFolder: (parent: string | null, name: string) => string
   renameFolder: (id: string, name: string) => void
+  moveFolder: (id: string, parent: string | null) => void
+  renameNote: (id: string, title: string) => void
   moveNote: (id: string, folder: string | null) => void
   createNote: (folder: string | null) => string
   saveNote: (id: string, plain: NotePlain) => void
@@ -91,8 +93,11 @@ interface VaultState {
   trashItem: (collection: CollectionKey, id: string) => Promise<void>
   trashFolder: (id: string) => Promise<void>
   createFileFolder: (parent: string | null, name: string) => string
+  renameFileFolder: (id: string, name: string) => void
+  moveFileFolder: (id: string, parent: string | null) => void
   trashFileFolder: (id: string) => Promise<void>
   moveFile: (id: string, folder: string | null) => void
+  renameFile: (id: string, name: string) => void
   restoreItem: (collection: CollectionKey, id: string) => Promise<void>
   purgeItem: (collection: CollectionKey, id: string) => Promise<void>
   uploadFile: (file: File, folder?: string | null) => Promise<void>
@@ -347,6 +352,18 @@ export const useVault = create<VaultState>((set, get) => {
       schedulePush('folders', id)
     },
 
+    moveFolder(id, parent) {
+      patchItem('folders', id, { parent, sync: 'pending' })
+      schedulePush('folders', id, true)
+    },
+
+    renameNote(id, title) {
+      const note = get().notes[id]
+      if (!note) return
+      patchItem('notes', id, { plain: { ...note.plain, title, edited: Date.now() }, sync: 'pending' })
+      schedulePush('notes', id)
+    },
+
     moveNote(id, folder) {
       patchItem('notes', id, { folder, sync: 'pending' })
       schedulePush('notes', id, true)
@@ -426,6 +443,16 @@ export const useVault = create<VaultState>((set, get) => {
       return id
     },
 
+    renameFileFolder(id, name) {
+      patchItem('fileFolders', id, { plain: { name }, sync: 'pending' })
+      schedulePush('fileFolders', id)
+    },
+
+    moveFileFolder(id, parent) {
+      patchItem('fileFolders', id, { parent, sync: 'pending' })
+      schedulePush('fileFolders', id, true)
+    },
+
     async trashFileFolder(id) {
       const now = new Date().toISOString()
       const descendants = folderDescendants('fileFolders', id)
@@ -440,6 +467,13 @@ export const useVault = create<VaultState>((set, get) => {
     moveFile(id, folder) {
       patchItem('files', id, { folder, sync: 'pending' })
       schedulePush('files', id, true)
+    },
+
+    renameFile(id, name) {
+      const file = get().files[id]
+      if (!file) return
+      patchItem('files', id, { plain: { ...file.plain, name }, sync: 'pending' })
+      schedulePush('files', id)
     },
 
     async restoreItem(collection, id) {
