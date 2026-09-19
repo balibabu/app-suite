@@ -83,6 +83,8 @@ interface VaultState {
   renameFolder: (id: string, name: string) => void
   moveFolder: (id: string, parent: string | null) => void
   renameNote: (id: string, title: string) => void
+  toggleNotePin: (id: string) => void
+  toggleFolderPin: (id: string) => void
   moveNote: (id: string, folder: string | null) => void
   createNote: (folder: string | null) => string
   saveNote: (id: string, plain: NotePlain) => void
@@ -348,7 +350,16 @@ export const useVault = create<VaultState>((set, get) => {
     },
 
     renameFolder(id, name) {
-      patchItem('folders', id, { plain: { name }, sync: 'pending' })
+      const folder = get().folders[id]
+      if (!folder) return
+      patchItem('folders', id, { plain: { ...folder.plain, name }, sync: 'pending' })
+      schedulePush('folders', id)
+    },
+
+    toggleFolderPin(id) {
+      const folder = get().folders[id]
+      if (!folder) return
+      patchItem('folders', id, { plain: { ...folder.plain, pinned: !folder.plain.pinned }, sync: 'pending' })
       schedulePush('folders', id)
     },
 
@@ -361,6 +372,13 @@ export const useVault = create<VaultState>((set, get) => {
       const note = get().notes[id]
       if (!note) return
       patchItem('notes', id, { plain: { ...note.plain, title, edited: Date.now() }, sync: 'pending' })
+      schedulePush('notes', id)
+    },
+
+    toggleNotePin(id) {
+      const note = get().notes[id]
+      if (!note) return
+      patchItem('notes', id, { plain: { ...note.plain, pinned: !note.plain.pinned }, sync: 'pending' })
       schedulePush('notes', id)
     },
 

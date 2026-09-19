@@ -19,6 +19,8 @@ import {
   Italic,
   List,
   Pencil,
+  Pin,
+  PinOff,
   Quote,
   Scissors,
   Search,
@@ -56,6 +58,8 @@ export default function NotesPage() {
   const trashFolder = useVault((state) => state.trashFolder)
   const moveFolder = useVault((state) => state.moveFolder)
   const moveNote = useVault((state) => state.moveNote)
+  const toggleFolderPin = useVault((state) => state.toggleFolderPin)
+  const toggleNotePin = useVault((state) => state.toggleNotePin)
   const { noteId } = useParams()
   const navigate = useNavigate()
   const [query, setQuery] = useState('')
@@ -84,26 +88,35 @@ export default function NotesPage() {
 
   const items = useMemo(() => {
     const needle = query.trim().toLowerCase()
-    const activeFolders = Object.values(folders).filter(
-      (folder) =>
-        !folder.deletedAt &&
-        folder.parent === currentFolder &&
-        (!needle || folder.plain.name.toLowerCase().includes(needle)),
-    )
-    const activeNotes =
-      needle || !currentFolder
-        ? Object.values(notes).filter(
-            (note) =>
-              !note.deletedAt &&
-              (needle
-                ? note.plain.title.toLowerCase().includes(needle) ||
-                  note.plain.body.toLowerCase().includes(needle)
-                : note.folder === null),
-          )
-        : Object.values(notes).filter((note) => !note.deletedAt && note.folder === currentFolder)
+    const atRoot = currentFolder === null
+    const pinRank = (pinned?: boolean) => (pinned ? 0 : 1)
+    const activeFolders = Object.values(folders).filter((folder) => {
+      if (folder.deletedAt) return false
+      if (needle) {
+        return folder.parent === currentFolder && folder.plain.name.toLowerCase().includes(needle)
+      }
+      return folder.parent === currentFolder || (atRoot && !!folder.plain.pinned)
+    })
+    const activeNotes = Object.values(notes).filter((note) => {
+      if (note.deletedAt) return false
+      if (needle) {
+        return (
+          note.plain.title.toLowerCase().includes(needle) ||
+          note.plain.body.toLowerCase().includes(needle)
+        )
+      }
+      if (atRoot) {
+        return note.folder === null || !!note.plain.pinned
+      }
+      return note.folder === currentFolder
+    })
     return [
-      ...activeFolders.sort((a, b) => a.plain.name.localeCompare(b.plain.name)),
-      ...activeNotes.sort((a, b) => b.plain.edited - a.plain.edited),
+      ...activeFolders.sort(
+        (a, b) => pinRank(a.plain.pinned) - pinRank(b.plain.pinned) || a.plain.name.localeCompare(b.plain.name),
+      ),
+      ...activeNotes.sort(
+        (a, b) => pinRank(a.plain.pinned) - pinRank(b.plain.pinned) || b.plain.edited - a.plain.edited,
+      ),
     ]
   }, [folders, notes, currentFolder, query])
 
@@ -282,8 +295,22 @@ export default function NotesPage() {
             {items.map((item) => {
               const isFolder = 'parent' in item
               const name = isFolder ? item.plain.name : item.plain.title || 'untitled'
+              const pinned = !!item.plain.pinned
+              const pinAction: MenuAction = {
+                key: pinned ? 'unpin' : 'pin',
+                label: pinned ? 'unpin' : 'pin',
+                icon: pinned ? PinOff : Pin,
+                onSelect: () => {
+                  if (isFolder) {
+                    toggleFolderPin(item.id)
+                  } else {
+                    toggleNotePin(item.id)
+                  }
+                },
+              }
               const actions: MenuAction[] = isFolder
                 ? [
+                    pinAction,
                     {
                       key: 'rename',
                       label: 'rename',
@@ -316,6 +343,7 @@ export default function NotesPage() {
                     },
                   ]
                 : [
+                    pinAction,
                     {
                       key: 'rename',
                       label: 'rename',
@@ -360,6 +388,15 @@ export default function NotesPage() {
                   <div className="absolute top-2 right-2">
                     <ItemMenu actions={actions} />
                   </div>
+
+                  {pinned ? (
+                    <div
+                      title="pinned"
+                      className="absolute top-2 left-2 flex h-5 w-5 items-center justify-center rounded-md border border-amber-500/25 bg-amber-500/15 text-amber-400"
+                    >
+                      <Pin className="h-3 w-3" />
+                    </div>
+                  ) : null}
 
                   {isFolder ? (
                     <div className="mb-2.5 flex h-14 w-14 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10 text-amber-400 shadow-inner transition-transform group-hover:scale-105">
@@ -536,6 +573,7 @@ export default function NotesPage() {
           name={folders[propsTarget.id].plain.name}
           rows={[
             { label: 'name', value: folders[propsTarget.id].plain.name },
+            { label: 'pinned', value: folders[propsTarget.id].plain.pinned ? 'yes' : 'no' },
             { label: 'location', value: buildFolderPath(folders, folders[propsTarget.id].parent) },
             { label: 'items', value: String(countChildren(propsTarget.id)) },
             { label: 'created', value: formatDate(folders[propsTarget.id].createdAt) },
@@ -551,6 +589,7 @@ export default function NotesPage() {
           name={notes[propsTarget.id].plain.title || 'untitled'}
           rows={[
             { label: 'title', value: notes[propsTarget.id].plain.title || '—' },
+            { label: 'pinned', value: notes[propsTarget.id].plain.pinned ? 'yes' : 'no' },
             { label: 'location', value: buildFolderPath(folders, notes[propsTarget.id].folder) },
             { label: 'characters', value: String(notes[propsTarget.id].plain.body.length) },
             { label: 'words', value: String(notes[propsTarget.id].plain.body.trim() ? notes[propsTarget.id].plain.body.trim().split(/\s+/).length : 0) },

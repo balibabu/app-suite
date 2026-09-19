@@ -60,10 +60,12 @@ export interface NotePlain {
   title: string
   body: string
   edited: number
+  pinned?: boolean
 }
 
 export interface FolderPlain {
   name: string
+  pinned?: boolean
 }
 
 export interface TaskPlain {
